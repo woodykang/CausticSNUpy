@@ -363,13 +363,14 @@ def S(kappa, r, v, r_grid, v_grid, den, r200):
     
     r200_idx = coor2idx(r200, r_min, r_max, r_res)          # index of r200 in r_grid
     
-    '''
+    
     # phi is calculated by integrating f_q within the caustic lines.
     phi = np.empty(r200_idx)
+    #phi = np.empty(r_res)
     for i in range(phi.size):
         lower_limit = coor2idx(-A[i], v_min, v_max, v_res)
         upper_limit = coor2idx( A[i], v_min, v_max, v_res)
-        phi[i] = np.trapz(den[lower_limit:upper_limit, i], x = v[lower_limit:upper_limit])
+        phi[i] = np.trapz(den[lower_limit:upper_limit, i], x = v_grid[lower_limit:upper_limit])
     #phi = np.trapz(den[:r200_idx], dx = v_grid[1] - v_grid[0], axis = -1)    # integral along v axis
     
     #v_esc_mean_squared = np.trapz((A[:r200_idx]**2) * phi, x = r_grid[:r200_idx]) / np.trapz(phi, x = r_grid[:r200_idx])
@@ -379,6 +380,9 @@ def S(kappa, r, v, r_grid, v_grid, den, r200):
         return np.inf
 
     v_esc_mean_squared = np.trapz((A[:r200_idx]**2) * phi, x = r_grid[:r200_idx]) / np.trapz(phi, x = r_grid[:r200_idx])
+    #v_esc_mean_squared = np.trapz((A[r_grid < r200]**2) * phi, x = r_grid[r_grid < r200]) / np.trapz(phi, x = r_grid[r_grid < r200])
+    
+    '''
     cond_idx = (r < r200) & (abs(v) < A[coor2idx(r, r_min, r_max, r_res)])
     
     
@@ -387,9 +391,12 @@ def S(kappa, r, v, r_grid, v_grid, den, r200):
     
     
     v_mean_squared = np.sum((v[cond_idx])**2) / (v[cond_idx]).size
-    return (v_esc_mean_squared - 4*v_mean_squared)**2
     '''
+    v_mean_squared = np.var(v)
+    return (v_esc_mean_squared - 4*v_mean_squared)**2
     
+
+    '''
     # phi is calculated by integrating f_q within the caustic lines.
     # calculating v^2 from density estimation
     phi = np.empty(r200_idx)
@@ -408,8 +415,10 @@ def S(kappa, r, v, r_grid, v_grid, den, r200):
     v_mean_squared = np.trapz(v_sq, x = r_grid[:r200_idx]) / np.trapz(phi, x = r_grid[:r200_idx])
     
     return (v_esc_mean_squared - 4*v_mean_squared)**2
+    '''
 
-def S(kappa, r, v, r_grid, v_grid, den, r200):
+
+def S1(kappa, r, v, r_grid, v_grid, den, r200):
     r_min = r_grid.min()
     r_max = r_grid.max()
     r_res = r_grid.size
@@ -451,7 +460,8 @@ def S(kappa, r, v, r_grid, v_grid, den, r200):
     cond_idx = (r < r200) & (abs(v) < A[coor2idx(r, r_min, r_max, r_res)])
     v_squared_mean = np.sum((v[cond_idx])**2) / (v[cond_idx]).size
     return (v_esc_sqaured_mean - 4*v_squared_mean)**2
-    
+
+
 def calculate_A(kappa, den, r_grid, v_grid):
     '''
     # golden search for solution f(r, v) = kappa
