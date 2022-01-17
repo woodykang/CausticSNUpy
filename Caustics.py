@@ -365,22 +365,21 @@ def S(kappa, r, v, r_grid, v_grid, den, r200):
     
     
     # phi is calculated by integrating f_q within the caustic lines.
-    phi = np.empty(r200_idx)
-    #phi = np.empty(r_res)
+    #phi = np.empty(r200_idx)
+    phi = np.empty(r_res)
     for i in range(phi.size):
-        lower_limit = coor2idx(-A[i], v_min, v_max, v_res)
-        upper_limit = coor2idx( A[i], v_min, v_max, v_res)
-        phi[i] = np.trapz(den[lower_limit:upper_limit, i], x = v_grid[lower_limit:upper_limit])
+        #lower_limit = coor2idx(-A[i], v_min, v_max, v_res)
+        #upper_limit = coor2idx( A[i], v_min, v_max, v_res)
+        phi[i] = np.trapz(den[(v_grid < A[i]) & (v_grid > -A[i]), i], x = v_grid[(v_grid < A[i]) & (v_grid > -A[i])])
     #phi = np.trapz(den[:r200_idx], dx = v_grid[1] - v_grid[0], axis = -1)    # integral along v axis
     
     #v_esc_mean_squared = np.trapz((A[:r200_idx]**2) * phi, x = r_grid[:r200_idx]) / np.trapz(phi, x = r_grid[:r200_idx])
     
     
-    if np.trapz(phi, dx = r_grid[1] - r_grid[0]) == 0:
+    if np.trapz(phi[r_grid < r200], x = r_grid[r_grid < r200]) == 0:
         return np.inf
 
-    v_esc_mean_squared = np.trapz((A[:r200_idx]**2) * phi, x = r_grid[:r200_idx]) / np.trapz(phi, x = r_grid[:r200_idx])
-    #v_esc_mean_squared = np.trapz((A[r_grid < r200]**2) * phi, x = r_grid[r_grid < r200]) / np.trapz(phi, x = r_grid[r_grid < r200])
+    v_esc_mean_squared = np.trapz((A[r_grid < r200]**2) * phi[r_grid < r200], x = r_grid[r_grid < r200]) / np.trapz(phi[r_grid < r200], x = r_grid[r_grid < r200])
     
     '''
     cond_idx = (r < r200) & (abs(v) < A[coor2idx(r, r_min, r_max, r_res)])
@@ -390,9 +389,10 @@ def S(kappa, r, v, r_grid, v_grid, den, r200):
         return np.inf
     
     
-    v_mean_squared = np.sum((v[cond_idx])**2) / (v[cond_idx]).size
+    
+    #v_mean_squared = np.var(v[cond_idx])
     '''
-    v_mean_squared = np.var(v)
+    v_mean_squared = np.var(v)              # this needs to be fixed! this is not the correct calculation!!
     return (v_esc_mean_squared - 4*v_mean_squared)**2
     
 
