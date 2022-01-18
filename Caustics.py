@@ -107,10 +107,10 @@ def Caustics(fpath, r200, v_lower, v_upper, r_max = None, r_res = 250, v_res = 2
     print("Minimizing S(k) to find kappa.")
     kappa_guess = np.average(den)
     #kappa_guess = (den.max() + den.min())/2
-    a = kappa_guess*0.5
-    b = kappa_guess*2.0
-    #a = den.min()
-    #b = den.max()
+    #a = kappa_guess*0.5
+    #b = kappa_guess*2.0
+    a = den.min()
+    b = den.max()
     fn = lambda kappa: S(kappa, r, v, r_grid, v_grid, den, r200)
     kappa = minimize_fn(fn, a, b, positive = True, search_all = True)
 
@@ -140,7 +140,7 @@ def Caustics(fpath, r200, v_lower, v_upper, r_max = None, r_res = 250, v_res = 2
     plt.xlim(r_min, r_max)
     plt.ylim(-2000, 2000)
 
-    plt.title("Contour of # Density (Gaussian Kernel)")
+    plt.title("Redshift Diagram")
     plt.xlabel("Projected Distance (Mpc/h)")
     plt.ylabel("$(v_{gal}-v_{cl})/(1+z)$ (km/s)")
 
@@ -225,7 +225,7 @@ def Diaferio_density(x_data, y_data):
     a = 1e-5
     b = 2
     print("Calculating h_c.")
-    h_c = minimize_fn(fn, a, b, positive = True, search_all = True)
+    h_c = minimize_fn(fn, a, b, positive = True, search_all = False)
     print("h_c calculation finished. h_c = {}".format(h_c))
     h = h_c * h_opt * lam
     
@@ -412,16 +412,15 @@ def minimize_fn(fn, a, b, positive = False, it = 0, search_all = False):
         if (a == 0) and (b == 0):
             raise Exception("Cannot optimize the function. Either reset the search range, or check if the function is optimizable.")
     
-    '''
     if (it == 1) & (search_all):
-        #search_range = np.logspace(np.log10(a + abs(b-a)*1e-6), np.log10(b), 100)
-        search_range = np.linspace(a, b, 100)
+        search_range = np.logspace(np.log10(a + abs(b-a)*1e-6), np.log10(b), 100)
+        #search_range = np.linspace(a, b, 100)
         min_idx = 0
         min_val = fn(search_range[0])
         for i in range(search_range.size):
             x = search_range[i]
             val = fn(x)
-            print("{} : {}".format(i, val))
+            #print("{} : {}".format(i, val))
             if val < min_val:
                 min_idx = i
                 min_val = val
@@ -431,7 +430,7 @@ def minimize_fn(fn, a, b, positive = False, it = 0, search_all = False):
         a = max(search_range[min_idx] - (b-a)*0.25, a)
         b = min(search_range[min_idx] + (b-a)*0.25, b)
         print("search range: {} ~ {}".format(a, b))
-    '''
+
     a_init = a
     b_init = b
     
