@@ -378,108 +378,8 @@ def S(kappa, r, v, r_grid, v_grid, den, r200):
     return (v_esc_mean_squared - 4*v_mean_squared)**2
     
 
-def S1(kappa, r, v, r_grid, v_grid, den, r200):
-    r_min = r_grid.min()
-    r_max = r_grid.max()
-    r_res = r_grid.size
-    
-    v_min = v_grid.min()
-    v_max = v_grid.max()
-    v_res = v_grid.size
-    
-    r200_idx = coor2idx(r200, r_min, r_max, r_res)
-    
-    A = calculate_A(kappa, den, r_grid, v_grid)
-    
-    '''
-    x0Range = rRange*H
-    R = (np.sqrt(5)-1)*0.5        # golden ratio
-
-    TOL = 1e-5
-    error = TOL+1
-    a = np.empty(rRange.size)
-    a.fill(0/q)
-    b = np.empty(rRange.size)
-    b.fill(vHigh/q)
-    while np.all(error > TOL):
-        a1 = b - R*(b - a)
-        b1 = a + R*(b - a)
-
-        a[(abs(fq(x0Range, a1, xdata_0, xdata_1, gauss2d, h)-kappa)) >  (abs(fq(x0Range, b1, xdata_0, xdata_1, gauss2d, h)-kappa))] = a1[(abs(fq(x0Range, a1, xdata_0, xdata_1, gauss2d, h)-kappa)) >  (abs(fq(x0Range, b1, xdata_0, xdata_1, gauss2d, h)-kappa))]
-        b[(abs(fq(x0Range, a1, xdata_0, xdata_1, gauss2d, h)-kappa)) <= (abs(fq(x0Range, b1, xdata_0, xdata_1, gauss2d, h)-kappa))] = b1[(abs(fq(x0Range, a1, xdata_0, xdata_1, gauss2d, h)-kappa)) <= (abs(fq(x0Range, b1, xdata_0, xdata_1, gauss2d, h)-kappa))]
-
-        error = abs(b - a)
-
-    a[abs(fq(x0Range, a, xdata_0, xdata_1, gauss2d, h)-kappa) > TOL*kappa] = 0
-    A = a*q
-    '''
-    
-    phi = np.trapz(den[:r200_idx], x = v_grid, axis = -1)
-    
-    v_esc_sqaured_mean = np.trapz((A[:r200_idx]**2) * phi, dx = r_grid[1] - r_grid[0]) / np.trapz(phi, dx = r_grid[1] - r_grid[0])
-    cond_idx = (r < r200) & (abs(v) < A[coor2idx(r, r_min, r_max, r_res)])
-    v_squared_mean = np.sum((v[cond_idx])**2) / (v[cond_idx]).size
-    return (v_esc_sqaured_mean - 4*v_squared_mean)**2
-
 
 def calculate_A(kappa, den, r_grid, v_grid):
-    '''
-    # golden search for solution f(r, v) = kappa
-    R = (np.sqrt(5)-1)*0.5        # golden ratio
-    
-    ## upper contour
-    TOL = 1e-5
-    error = TOL + 1
-    
-    a = np.empty(x_grid.size)
-    a.fill(0/q)
-    b = np.empty(x_grid.size)
-    b.fill(v_max/q)
-    while np.all(error > TOL):
-        x1 = b - R*(b - a)
-        x2 = a + R*(b - a)
-        
-        cond_idx = (abs(f(x_grid, x1) - kappa)) >  (abs(f(x_grid, x2) - kappa))
-
-        a[cond_idx] = x1[cond_idx]
-        b[np.logical_not(cond_idx)] = x2[np.logical_not(cond_idx)]
-
-        error = abs(b - a)
-
-    
-    ### if the function values does not satisfy the TOLerance, then assume that there is no such solution, and set the value to 0
-    a[abs(f(x_grid, a)-kappa) > TOL*kappa] = 0
-    A_up = a*q
-    
-    ## lower contour
-    TOL = 1e-5
-    error = TOL + 1
-    
-    a = np.empty(x_grid.size)
-    a.fill(0/q)
-    b = np.empty(x_grid.size)
-    b.fill(v_min/q)
-    while np.all(error > TOL):
-        x1 = b - R*(b - a)
-        x2 = a + R*(b - a)
-
-        cond_idx = (abs(f(x_grid, x1) - kappa)) >  (abs(f(x_grid, x2) - kappa))
-
-        a[cond_idx] = x1[cond_idx]
-        b[np.logical_not(cond_idx)] = x2[np.logical_not(cond_idx)]
-        
-        error = abs(b - a)
-    
-    
-    ### if the function values does not satisfy the TOLerance, then assume that there is no such solution, and set the value to 0
-    a[abs(f(x_grid, a)-kappa) > TOL*kappa] = 0
-    A_down = a*q
-    
-    A = np.minimum(np.abs(A_up), np.abs(A_down))
-    A = grad_restrict(A, r_grid)
-    
-    return A
-    '''
     contours = skimage.measure.find_contours(den, kappa)
     r_step = r_grid[1] - r_grid[0]
     v_step = v_grid[1] - v_grid[0]
@@ -489,21 +389,6 @@ def calculate_A(kappa, den, r_grid, v_grid):
         v_cont = contour[:,0]
         
         if not (r_cont[0] == r_cont[-1] and v_cont[0] == v_cont[-1]):   # consider only non-looping contours           
-            '''
-            #interpolate
-            split_idx = (np.diff(np.sign(np.diff(r_cont))) != 0).nonzero()[0] + 2
-            r_segments = np.split(r_cont, split_idx)
-            v_segments = np.split(v_cont, split_idx)
-
-            for r_seg, v_seg in zip(r_segments, v_segments):
-                if (r_seg.size > 1) and (r_seg[0] > r_seg[1]):
-                    r_seg = r_seg[::-1]
-                    v_seg = v_seg[::-1]
-
-                r_cont_grid = np.arange(r_seg.max()).astype(int)
-                v_cont_grid = np.interp(r_cont_grid, r_seg, v_seg)
-                print(r_seg)
-            '''
             int_idx = (r_cont == r_cont.astype(int))
             r_cont_grid = r_cont[int_idx].astype(int)
             v_cont_grid = v_cont[int_idx]
