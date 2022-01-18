@@ -365,58 +365,18 @@ def S(kappa, r, v, r_grid, v_grid, den, r200):
     
     
     # phi is calculated by integrating f_q within the caustic lines.
-    #phi = np.empty(r200_idx)
     phi = np.empty(r_res)
     for i in range(phi.size):
-        #lower_limit = coor2idx(-A[i], v_min, v_max, v_res)
-        #upper_limit = coor2idx( A[i], v_min, v_max, v_res)
         phi[i] = np.trapz(den[(v_grid < A[i]) & (v_grid > -A[i]), i], x = v_grid[(v_grid < A[i]) & (v_grid > -A[i])])
-    #phi = np.trapz(den[:r200_idx], dx = v_grid[1] - v_grid[0], axis = -1)    # integral along v axis
-    
-    #v_esc_mean_squared = np.trapz((A[:r200_idx]**2) * phi, x = r_grid[:r200_idx]) / np.trapz(phi, x = r_grid[:r200_idx])
-    
-    
+
     if np.trapz(phi[r_grid < r200], x = r_grid[r_grid < r200]) == 0:
         return np.inf
 
     v_esc_mean_squared = np.trapz((A[r_grid < r200]**2) * phi[r_grid < r200], x = r_grid[r_grid < r200]) / np.trapz(phi[r_grid < r200], x = r_grid[r_grid < r200])
     
-    '''
-    cond_idx = (r < r200) & (abs(v) < A[coor2idx(r, r_min, r_max, r_res)])
-    
-    
-    if not np.any(cond_idx):
-        return np.inf
-    
-    
-    
-    #v_mean_squared = np.var(v[cond_idx])
-    '''
-    v_mean_squared = np.var(v)              # this needs to be fixed! this is not the correct calculation!!
+    v_mean_squared = np.var(v[r < r200])              # In Diaferio 1999 and Serra et al. 2011, the mean of the squared velocity is independent of kappa.
     return (v_esc_mean_squared - 4*v_mean_squared)**2
     
-
-    '''
-    # phi is calculated by integrating f_q within the caustic lines.
-    # calculating v^2 from density estimation
-    phi = np.empty(r200_idx)
-    v_sq = np.empty(r200_idx)
-    for i in range(phi.size):
-        lower_limit = coor2idx(-A[i], v_min, v_max, v_res)
-        upper_limit = coor2idx( A[i], v_min, v_max, v_res)
-        phi[i] = np.trapz(den[lower_limit:upper_limit, i], x = v[lower_limit:upper_limit])
-        v_sq[i] = np.trapz(den[lower_limit:upper_limit, i] * (v_grid[lower_limit:upper_limit])**2, x = v[lower_limit:upper_limit])
-    #phi = np.trapz(den[:r200_idx], dx = v_grid[1] - v_grid[0], axis = -1)    # integral along v axis    
-    
-    if np.trapz(phi, x = r_grid[:r200_idx]) == 0:
-        return np.inf
-
-    v_esc_mean_squared = np.trapz((A[:r200_idx]**2) * phi, x = r_grid[:r200_idx]) / np.trapz(phi, x = r_grid[:r200_idx])
-    v_mean_squared = np.trapz(v_sq, x = r_grid[:r200_idx]) / np.trapz(phi, x = r_grid[:r200_idx])
-    
-    return (v_esc_mean_squared - 4*v_mean_squared)**2
-    '''
-
 
 def S1(kappa, r, v, r_grid, v_grid, den, r200):
     r_min = r_grid.min()
