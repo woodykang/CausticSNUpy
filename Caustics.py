@@ -179,8 +179,8 @@ def Gifford_density(x_data, y_data):
     
     
     N = x_data.size                            # number of data points
-    h_x = (4/(3*N))**0.2 * np.std(x_data)      # bandwidth along the x-axis (scaled r-axis)
-    h_y = (4/(3*N))**0.2 * np.std(y_data)      # bandwidth along the y-axis (scaled v-axis)
+    h_x = (4/(3*N))**0.2 * astropy.stats.biweight_scale(x_data)     # bandwidth along the x-axis (scaled r-axis)
+    h_y = (4/(3*N))**0.2 * astropy.stats.biweight_scale(y_data)     # bandwidth along the y-axis (scaled v-axis)
     h = np.asarray([h_x, h_y])                 # bandwidth as an array
     
     return lambda x, y: fq(x, y, x_data, y_data, gauss2d, h)
@@ -209,8 +209,8 @@ def adaptive_Gifford_density(x_data, y_data):
     '''
     
     N = x_data.size                         # number of data points
-    h_x = (4/(3*N))**0.2 * np.std(x_data)   # global bandwidth along the x-axis (scaled r-axis)
-    h_y = (4/(3*N))**0.2 * np.std(y_data)   # global bandwidth along the y-axis (scaled v-axis)
+    h_x = (4/(3*N))**0.2 * astropy.stats.biweight_scale(x_data)   # global bandwidth along the x-axis (scaled r-axis)
+    h_y = (4/(3*N))**0.2 * astropy.stats.biweight_scale(y_data)   # global bandwidth along the y-axis (scaled v-axis)
 
     gamma = 10**(np.sum(np.log10(fq(x_data, y_data, x_data, y_data, gauss2d, (h_x, h_y)))/N))
     lam = (gamma/fq(x_data, y_data, x_data, y_data, gauss2d, (h_x, h_y)))**0.5        # local smoothing factor
@@ -222,7 +222,7 @@ def adaptive_Gifford_density(x_data, y_data):
 
 def Diaferio_density(x_data, y_data):
     N = x_data.size
-    h_opt = 6.24/(N**(1/6))*np.sqrt((np.std(x_data)**2 + np.std(y_data)**2)/2)
+    h_opt = 6.24/(N**(1/6))*np.sqrt((astropy.stats.biweight_scale(x_data)**2 + astropy.stats.biweight_scale(y_data)**2)/2)
     
     gamma = 10**(np.sum(np.log10(fq(x_data, y_data, x_data, y_data, triweight, 1)))/N)
     #gamma = np.prod(fq(x_data, y_data, x_data, y_data, triweight, 1))**(1/N)
@@ -382,7 +382,7 @@ def S(kappa, r, v, r_grid, v_grid, den, r200):
 
     v_esc_mean_squared = np.trapz((A[r_grid < r200]**2) * phi[r_grid < r200], x = r_grid[r_grid < r200]) / np.trapz(phi[r_grid < r200], x = r_grid[r_grid < r200])
     
-    v_mean_squared = np.var(v[r < r200])              # In Diaferio 1999 and Serra et al. 2011, the mean of the squared velocity is independent of kappa.
+    v_mean_squared = astropy.stats.biweight_midvariance(v[r < r200])              # In Diaferio 1999 and Serra et al. 2011, the mean of the squared velocity is independent of kappa.
     return (v_esc_mean_squared - 4*v_mean_squared)**2
     
 
