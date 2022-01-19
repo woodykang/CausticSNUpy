@@ -3,10 +3,12 @@ import skimage.measure
 import matplotlib.pyplot as plt
 from matplotlib import cm
 import astropy.coordinates
+import astropy.units
 import astropy.cosmology
+import astropy.stats
 
 
-def Caustics(fpath, r200, v_lower, v_upper, r_max = None, r_res = 250, v_res = 250, method = "Gifford"):
+def Caustics(fpath, v_lower, v_upper, r_max, r200 = None, r_res = 250, v_res = 250, method = "Gifford"):
     '''
     Inputs
     ----------------
@@ -44,7 +46,7 @@ def Caustics(fpath, r200, v_lower, v_upper, r_max = None, r_res = 250, v_res = 2
     angle = astropy.coordinates.angular_separation(cl_ra*np.pi/180, cl_dec*np.pi/180, gal_ra*np.pi/180, gal_dec*np.pi/180)      #angular separation of galxay and cluster center
     r = angle*R                                 # projected distance from cluster center to each galaxies
     v = (gal_v - cl_v)/(1+cl_z)                 # relative los velocity with regard to cluster center
-    
+
     # apply cutoffs given by input
     if r_max == None:
         r_max = r200*5
@@ -58,10 +60,16 @@ def Caustics(fpath, r200, v_lower, v_upper, r_max = None, r_res = 250, v_res = 2
     
     v_min = v_lower - cl_v      # lower bound of v
     v_max = v_upper - cl_v      # upper bound of v
+
+    if r200 == None:
+        sigma = astropy.stats.biweight_scale(v)
+        Hz = float( LCDM.H(cl_z) / (astropy.units.km / astropy.units.s / astropy.units.Mpc) )
+        r200 = (np.sqrt(3) * sigma) / (10*Hz)               # eq. 8 from Carlberg et al. 1996
+        print("r200 : {}".format(r200))
     
     print("Data unpacked.")
-    print("Cluster center coordinates: RA {} deg,  Dec {} deg".format(cl_ra, cl_dec))
-    print("Cluster center radial velocity : {} km/s".format(cl_v))
+    #print("Cluster center coordinates: RA {} deg,  Dec {} deg".format(cl_ra, cl_dec))
+    #print("Cluster center radial velocity : {} km/s".format(cl_v))
     print("")
     
     # estimate number density in the redshift diagram
