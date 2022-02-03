@@ -45,7 +45,6 @@ def Caustics(fpath, v_lower, v_upper, r_max, r200 = None, r_res = 250, v_res = 2
     
     angle = astropy.coordinates.angular_separation(cl_ra*np.pi/180, cl_dec*np.pi/180, gal_ra*np.pi/180, gal_dec*np.pi/180)      #angular separation of galxay and cluster center
     r = (angle*R).to(u.Mpc, equivalencies = u.dimensionless_angles()).value                                 # projected distance from cluster center to each galaxies
-    print(r[0])
     v = (gal_v - cl_v)/(1+cl_z)                 # relative los velocity with regard to cluster center
 
     # apply cutoffs given by input
@@ -94,10 +93,6 @@ def Caustics(fpath, v_lower, v_upper, r_max, r200 = None, r_res = 250, v_res = 2
     
     print("Number density estimation done.")
     print("")
-    
-    # calculate number density for a mesh grid
-    #r_res = 250    # r-axis resolution for the mesh grid
-    #v_res = 250    # v-axis resolution for the mesh grid
     
     # undo mirror
     r_min = 0
