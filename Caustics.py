@@ -3,7 +3,7 @@ import skimage.measure
 import matplotlib.pyplot as plt
 from matplotlib import cm
 import astropy.coordinates
-import astropy.units
+import astropy.units as u
 import astropy.cosmology
 import astropy.stats
 
@@ -21,11 +21,11 @@ def Caustics(fpath, v_lower, v_upper, r_max, r200 = None, r_res = 250, v_res = 2
     '''
     
     # constants
-    c     = 299792.458      # speed of light in km/s
-    H     = 100             # Hubble constant in km/s/Mpc
+    c     = 299792.458     # speed of light in km/s
+    H0    = 100            # Hubble constant in km/s/Mpc
     Om0   = 0.3             # matter density parameter for the cosmological model
     Ode0  = 0.7             # dark energy density paramter for the cosmological model
-    Tcmb0 = 2.7             # Temperature of the CMB at z=0
+    Tcmb0 = 2.7            # Temperature of the CMB at z=0
     q     = 25              # scaling factor ratio of v to r
     
     # unpack data
@@ -38,13 +38,14 @@ def Caustics(fpath, v_lower, v_upper, r_max, r200 = None, r_res = 250, v_res = 2
     
     
     # calculate projected distance and radial velocity
-    LCDM = astropy.cosmology.LambdaCDM(H, Om0, Ode0, Tcmb0)     #Lambda CDM model with the given parameters
+    LCDM = astropy.cosmology.LambdaCDM(H0, Om0, Ode0, Tcmb0)     #Lambda CDM model with the given parameters
     
     cl_z = cl_v/c   # redshift of the cluster center
-    R = float(LCDM.angular_diameter_distance(cl_z)/astropy.units.Mpc)   # angular diameter distance to the cluster center
+    R = LCDM.angular_diameter_distance(cl_z)        # angular diameter distance to the cluster center
     
     angle = astropy.coordinates.angular_separation(cl_ra*np.pi/180, cl_dec*np.pi/180, gal_ra*np.pi/180, gal_dec*np.pi/180)      #angular separation of galxay and cluster center
-    r = angle*R                                 # projected distance from cluster center to each galaxies
+    r = (angle*R).to(u.Mpc, equivalencies = u.dimensionless_angles()).value                                 # projected distance from cluster center to each galaxies
+    print(r[0])
     v = (gal_v - cl_v)/(1+cl_z)                 # relative los velocity with regard to cluster center
 
     # apply cutoffs given by input
@@ -63,7 +64,7 @@ def Caustics(fpath, v_lower, v_upper, r_max, r200 = None, r_res = 250, v_res = 2
 
     if r200 == None:
         sigma = astropy.stats.biweight_scale(v)
-        Hz = float( LCDM.H(cl_z) / (astropy.units.km / astropy.units.s / astropy.units.Mpc) )
+        Hz = LCDM.H(cl_z).to(u.km / u.s / u.Mpc).value
         r200 = (np.sqrt(3) * sigma) / (10*Hz)               # eq. 8 from Carlberg et al. 1996
         print("r200 : {}".format(r200))
     
@@ -75,7 +76,7 @@ def Caustics(fpath, v_lower, v_upper, r_max, r200 = None, r_res = 250, v_res = 2
     # estimate number density in the redshift diagram
     print("Estimating number density in phase space via " + method + " method.")
     
-    x_data = r*H
+    x_data = r*H0
     y_data = v/q
     
     # mirror the data for boundary correction
@@ -104,7 +105,7 @@ def Caustics(fpath, v_lower, v_upper, r_max, r200 = None, r_res = 250, v_res = 2
     r_grid = np.linspace(r_min, r_max, r_res)
     v_grid = np.linspace(v_min, v_max, v_res)
     
-    x_grid = r_grid*H
+    x_grid = r_grid*H0
     y_grid = v_grid/q
     
     X, Y = np.meshgrid(x_grid, y_grid)
@@ -120,7 +121,7 @@ def Caustics(fpath, v_lower, v_upper, r_max, r200 = None, r_res = 250, v_res = 2
     a = den.min()
     b = den.max()
     fn = lambda kappa: S(kappa, r, v, r_grid, v_grid, den, r200)
-    kappa = minimize_fn(fn, a, b, positive = True, search_all = True)
+    kappa = minimize_fn(fn, a, b, positive = True, search_all = False)
 
     
     
@@ -224,8 +225,8 @@ def Diaferio_density(x_data, y_data):
     N = x_data.size
     h_opt = 6.24/(N**(1/6))*np.sqrt((astropy.stats.biweight_scale(x_data)**2 + astropy.stats.biweight_scale(y_data)**2)/2)
     
-    gamma = 10**(np.sum(np.log10(fq(x_data, y_data, x_data, y_data, triweight, 1)))/N)
-    #gamma = np.prod(fq(x_data, y_data, x_data, y_data, triweight, 1))**(1/N)
+    gamma = 10**(np.sum(np.log10(fq(x_data, y_data, x_data, y_data, triweight, h_opt)))/N)
+    #gamma = np.prod(fq(x_data, y_data, x_data, y_data, triweight, h_opt))**(1/N)
     lam = (gamma/fq(x_data, y_data, x_data, y_data, triweight, h_opt))**0.5
     
     fn = lambda h_c: h_cost_function(h_c, h_opt, lam, x_data, y_data)
@@ -233,7 +234,7 @@ def Diaferio_density(x_data, y_data):
     a = 1e-5
     b = 2
     print("Calculating h_c.")
-    h_c = minimize_fn(fn, a, b, positive = True, search_all = False)
+    h_c = minimize_fn(fn, a, b, positive = True, search_all = True)
     print("h_c calculation finished. h_c = {}".format(h_c))
     h = h_c * h_opt * lam
     
@@ -515,4 +516,3 @@ def grad_restrict(A, r, grad_limit = 2):
             
             
     return A
-
