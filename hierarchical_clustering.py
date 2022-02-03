@@ -146,12 +146,12 @@ def hier_clustering(gal_ra, gal_dec, gal_v):
         else:
             cut_idx = np.where(np.abs(sig_pl - sigma)/sig_pl < delta)[0][4]
     
-    member_idx = leaves[mainbranch[cut_idx]-N]
-    cand_gal_ra = gal_ra[member_idx]
-    cand_gal_dec = gal_dec[member_idx]
-    cand_gal_v = gal_v[member_idx]
+    cand_mem_idx = leaves[mainbranch[cut_idx]-N]
+    cand_gal_ra = gal_ra[cand_mem_idx]
+    cand_gal_dec = gal_dec[cand_mem_idx]
+    cand_gal_v = gal_v[cand_mem_idx]
 
     cand_mem = np.zeros(N)
-    cand_mem[member_idx] = 1
+    cand_mem[cand_mem_idx] = 1
 
-    return member_idx
+    return cand_mem_idx
