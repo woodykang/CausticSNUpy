@@ -6,6 +6,7 @@ import astropy.coordinates
 import astropy.units as u
 import astropy.cosmology
 import astropy.stats
+from hierarchical_clustering import hier_clustering
 
 
 def Caustics(fpath, v_lower, v_upper, r_max, r200 = None, r_res = 250, v_res = 250, method = "Gifford"):
@@ -61,10 +62,17 @@ def Caustics(fpath, v_lower, v_upper, r_max, r200 = None, r_res = 250, v_res = 2
     v_min = v_lower - cl_v      # lower bound of v
     v_max = v_upper - cl_v      # upper bound of v
 
+    # shortlist candidate members using hierarchical clustering
+    cand_mem_idx = hier_clustering(gal_ra, gal_dec, gal_v)
+
+
     if r200 == None:
-        sigma = astropy.stats.biweight_scale(v)
+        r200 = np.average(r)
+        '''
+        sigma = astropy.stats.biweight_scale(v[cand_mem_idx])
         Hz = LCDM.H(cl_z).to(u.km / u.s / u.Mpc).value
         r200 = (np.sqrt(3) * sigma) / (10*Hz)               # eq. 8 from Carlberg et al. 1996
+        '''
         print("r200 : {}".format(r200))
     
     print("Data unpacked.")
