@@ -26,13 +26,13 @@ def hier_clustering(gal_ra, gal_dec, gal_v):
     m = 1e12  * 2e30                        # mass of a single galaxy [kg] (1 solar mass = 2e30 kg)
     G = 6.67e-11                            # gravitational constant  [N m^2 kg^-2]
     c = 299792458                           # speed of light          [km/s]
-    H = 100                                 # Hubble constant         [km/s/Mpc]
+    H0 = 100                                 # Hubble constant         [km/s/Mpc]
     Mpc = 3.086e22                          # conversion factor from Mpc to meter
     km = 1000                               # conversion factor from km to meter
 
     # calculate pairwise binding energy
     zi = gal_v/c                                    # redshift of each galaxy
-    r_m = 2*c/H * (1 - 1/np.sqrt(1 + zi)) * Mpc     # distance corresponding to redshift zi [m] (eq. 10 from Serra et al. 2011)
+    r_m = 2*c/H0 * (1 - 1/np.sqrt(1 + zi)) * Mpc     # distance corresponding to redshift zi [m] (eq. 10 from Serra et al. 2011)
 
     gal_ra_rad = gal_ra * np.pi/180                 # RA of each galaxies in radians
     gal_dec_rad = gal_dec * np.pi/180               # Declination of each galaxies in radians
