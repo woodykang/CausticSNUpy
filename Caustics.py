@@ -240,7 +240,7 @@ def adaptive_Gifford_density(x_data, y_data):
 
 def Diaferio_density(x_data, y_data):
     N = x_data.size
-    h_opt = 6.24/(N**(1/6))*np.sqrt((astropy.stats.biweight_scale(x_data)**2 + astropy.stats.biweight_scale(y_data)**2)/2)
+    h_opt = 6.24/(N**(1/6)) * np.sqrt((astropy.stats.biweight_scale(x_data)**2 + astropy.stats.biweight_scale(y_data)**2)/2)
     
     gamma = 10**(np.sum(np.log10(fq(x_data, y_data, x_data, y_data, triweight, h_opt)))/N)
     #gamma = np.prod(fq(x_data, y_data, x_data, y_data, triweight, h_opt))**(1/N)
@@ -252,9 +252,10 @@ def Diaferio_density(x_data, y_data):
     b = 2
     print("Calculating h_c.")
     #h_c = minimize_fn(fn, a, b, positive = True, search_all = True)
-    res = scipy.optimize.minimize(fn, x0=[0.1], bounds=[(0, np.inf)])
+    res = scipy.optimize.minimize(fn, x0=[0.01], bounds=[(0, 10)])
     h_c = res.x[0]
     print("h_c calculation finished")
+    print("       success : {}".format(res.success))
     print("      iteraion : {}".format(res.nit))
     print("function value : {}".format(res.fun))
     print("           h_c : {}".format(h_c))
