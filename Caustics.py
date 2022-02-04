@@ -64,6 +64,7 @@ def Caustics(fpath, v_lower, v_upper, r_max, r200 = None, r_res = 250, v_res = 2
 
     # shortlist candidate members using hierarchical clustering
     cand_mem_idx = hier_clustering(gal_ra, gal_dec, gal_v)
+    vvar = astropy.stats.biweight_midvariance(v[cand_mem_idx])
 
 
     if r200 == None:
@@ -123,7 +124,7 @@ def Caustics(fpath, v_lower, v_upper, r_max, r200 = None, r_res = 250, v_res = 2
     #b = kappa_guess*2.0
     a = den.min()
     b = den.max()
-    fn = lambda kappa: S(kappa, r, v, r_grid, v_grid, den, r200)
+    fn = lambda kappa: S(kappa, r, v, r_grid, v_grid, den, r200, vvar)
     kappa = minimize_fn(fn, a, b, positive = True, search_all = False)
 
     
@@ -365,7 +366,7 @@ def coor2idx(x, xmin, xmax, nstep):       # nstep: number of steps
     idx = np.int32((x-xmin)/(xmax - xmin)*nstep)
     return idx
 
-def S(kappa, r, v, r_grid, v_grid, den, r200):
+def S(kappa, r, v, r_grid, v_grid, den, r200, vvar):
     A = calculate_A(kappa, den, r_grid, v_grid)
     
     r_min = r_grid.min()
@@ -389,7 +390,7 @@ def S(kappa, r, v, r_grid, v_grid, den, r200):
 
     v_esc_mean_squared = np.trapz((A[r_grid < r200]**2) * phi[r_grid < r200], x = r_grid[r_grid < r200]) / np.trapz(phi[r_grid < r200], x = r_grid[r_grid < r200])
     
-    v_mean_squared = astropy.stats.biweight_midvariance(v[r < r200])              # In Diaferio 1999 and Serra et al. 2011, the mean of the squared velocity is independent of kappa.
+    v_mean_squared = vvar              # In Diaferio 1999 and Serra et al. 2011, the mean of the squared velocity is independent of kappa.
     return (v_esc_mean_squared - 4*v_mean_squared)**2
     
 
