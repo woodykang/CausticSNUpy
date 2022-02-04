@@ -45,19 +45,19 @@ def Caustics(fpath, v_lower, v_upper, r_max, r200 = None, r_res = 250, v_res = 2
     R = LCDM.angular_diameter_distance(cl_z)        # angular diameter distance to the cluster center
     
     angle = astropy.coordinates.angular_separation(cl_ra*np.pi/180, cl_dec*np.pi/180, gal_ra*np.pi/180, gal_dec*np.pi/180)      #angular separation of galxay and cluster center
-    r = (angle*R).to(u.Mpc, equivalencies = u.dimensionless_angles()).value                                 # projected distance from cluster center to each galaxies
-    v = (gal_v - cl_v)/(1+cl_z)                 # relative los velocity with regard to cluster center
+    r_full = (angle*R).to(u.Mpc, equivalencies = u.dimensionless_angles()).value                                 # projected distance from cluster center to each galaxies
+    v_full = (gal_v - cl_v)/(1+cl_z)                 # relative los velocity with regard to cluster center
 
     # apply cutoffs given by input
     if r_max == None:
         r_max = r200*5
     
-    cutoff_idx = (gal_v > v_lower) & (gal_v < v_upper) & (r < r_max)
+    cutoff_idx = (gal_v > v_lower) & (gal_v < v_upper) & (r_full < r_max)
     gal_ra  = gal_ra[ cutoff_idx]
     gal_dec = gal_dec[cutoff_idx]
     gal_v   = gal_v[  cutoff_idx]
-    r = r[cutoff_idx]
-    v = v[cutoff_idx]
+    r = r_full[cutoff_idx]
+    v = v_full[cutoff_idx]
     
     v_min = v_lower - cl_v      # lower bound of v
     v_max = v_upper - cl_v      # upper bound of v
@@ -67,12 +67,12 @@ def Caustics(fpath, v_lower, v_upper, r_max, r200 = None, r_res = 250, v_res = 2
 
 
     if r200 == None:
-        r200 = np.average(r)
-        '''
+        #r200 = np.average(r)
+        #'''
         sigma = astropy.stats.biweight_scale(v[cand_mem_idx])
         Hz = LCDM.H(cl_z).to(u.km / u.s / u.Mpc).value
         r200 = (np.sqrt(3) * sigma) / (10*Hz)               # eq. 8 from Carlberg et al. 1996
-        '''
+        #'''
         print("r200 : {}".format(r200))
     
     print("Data unpacked.")
@@ -158,7 +158,10 @@ def Caustics(fpath, v_lower, v_upper, r_max, r200 = None, r_res = 250, v_res = 2
 
     plt.show()
     
-    return r_grid, v_grid, A, den
+    # determine membership
+    member = membership(r, v, r_grid, A)    # one-hot encoded
+
+    return r_grid, v_grid, A, den, r, v, member
 
 def Gifford_density(x_data, y_data):
     '''
@@ -519,3 +522,7 @@ def grad_restrict(A, r, grad_limit = 2):
             
             
     return A
+
+def membership(r, v, r_grid, A):
+    A_at_r = np.interp(r, r_grid, A)
+    return abs(v) < A_at_r
