@@ -1,4 +1,5 @@
 import numpy as np
+import scipy.optimize
 import skimage.measure
 import matplotlib.pyplot as plt
 from matplotlib import cm
@@ -118,18 +119,26 @@ def Caustics(fpath, v_lower, v_upper, r_max, r200 = None, r_res = 250, v_res = 2
 
     # minimize S(k) to get optimal kappa value
     print("Minimizing S(k) to find kappa.")
-    kappa_guess = np.average(den)
-    #kappa_guess = (den.max() + den.min())/2
+    #kappa_guess = np.average(den)
+    kappa_guess = (den.max() + den.min())/2
     #a = kappa_guess*0.5
     #b = kappa_guess*2.0
     a = den.min()
     b = den.max()
     fn = lambda kappa: S(kappa, r, v, r_grid, v_grid, den, r200, vvar)
-    kappa = minimize_fn(fn, a, b, positive = True, search_all = False)
+    #kappa = minimize_fn(fn, a, b, positive = True, search_all = False)
+    TOL = kappa_guess * 1e-5
+    res = scipy.optimize.minimize(fn, x0=[kappa_guess], bounds=[(den.min(), den.max())], tol=TOL)
+    kappa = res.x[0]
+    print("  init guess : {}".format(kappa_guess))
+    print("   iteration : {}".format(res.nit))
+    print("function val : {}".format(res.fun))
+    print("       kappa : {}".format(kappa))
+    print("    vel diff : {}".format(res.fun**0.25))
 
     
     
-    print("kappa found. kappa =  {}, S(k) = {}.".format(kappa, fn(kappa)))
+    #print("kappa found. kappa =  {}, S(k) = {}.".format(kappa, fn(kappa)))
     print("")
    
     # calculate A(r) with the minimized kappa
@@ -241,8 +250,13 @@ def Diaferio_density(x_data, y_data):
     a = 1e-5
     b = 2
     print("Calculating h_c.")
-    h_c = minimize_fn(fn, a, b, positive = True, search_all = True)
-    print("h_c calculation finished. h_c = {}".format(h_c))
+    #h_c = minimize_fn(fn, a, b, positive = True, search_all = True)
+    res = scipy.optimize.minimize(fn, x0=[0.1], bounds=[(0, np.inf)])
+    h_c = res.x[0]
+    print("h_c calculation finished")
+    print("      iteraion : {}".format(res.nit))
+    print("function value : {}".format(res.fun))
+    print("           h_c : {}".format(h_c))
     h = h_c * h_opt * lam
     
     
@@ -390,7 +404,8 @@ def S(kappa, r, v, r_grid, v_grid, den, r200, vvar):
 
     v_esc_mean_squared = np.trapz((A[r_grid < r200]**2) * phi[r_grid < r200], x = r_grid[r_grid < r200]) / np.trapz(phi[r_grid < r200], x = r_grid[r_grid < r200])
     
-    v_mean_squared = vvar              # In Diaferio 1999 and Serra et al. 2011, the mean of the squared velocity is independent of kappa.
+    v_mean_squared = astropy.stats.biweight_midvariance(v[r < r200])
+    #v_mean_squared = vvar              # In Diaferio 1999 and Serra et al. 2011, the mean of the squared velocity is independent of kappa.
     return (v_esc_mean_squared - 4*v_mean_squared)**2
     
 
