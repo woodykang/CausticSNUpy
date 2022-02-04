@@ -46,19 +46,19 @@ def Caustics(fpath, v_lower, v_upper, r_max, r200 = None, r_res = 250, v_res = 2
     R = LCDM.angular_diameter_distance(cl_z)        # angular diameter distance to the cluster center
     
     angle = astropy.coordinates.angular_separation(cl_ra*np.pi/180, cl_dec*np.pi/180, gal_ra*np.pi/180, gal_dec*np.pi/180)      #angular separation of galxay and cluster center
-    r_full = (angle*R).to(u.Mpc, equivalencies = u.dimensionless_angles()).value                                 # projected distance from cluster center to each galaxies
-    v_full = (gal_v - cl_v)/(1+cl_z)                 # relative los velocity with regard to cluster center
+    r = (angle*R).to(u.Mpc, equivalencies = u.dimensionless_angles()).value                                 # projected distance from cluster center to each galaxies
+    v = (gal_v - cl_v)/(1+cl_z)                 # relative los velocity with regard to cluster center
 
     # apply cutoffs given by input
     if r_max == None:
         r_max = r200*5
     
-    cutoff_idx = (gal_v > v_lower) & (gal_v < v_upper) & (r_full < r_max)
+    cutoff_idx = (gal_v > v_lower) & (gal_v < v_upper) & (r < r_max)
     gal_ra  = gal_ra[ cutoff_idx]
     gal_dec = gal_dec[cutoff_idx]
     gal_v   = gal_v[  cutoff_idx]
-    r = r_full[cutoff_idx]
-    v = v_full[cutoff_idx]
+    r = r[cutoff_idx]
+    v = v[cutoff_idx]
     
     v_min = v_lower - cl_v      # lower bound of v
     v_max = v_upper - cl_v      # upper bound of v
@@ -66,7 +66,7 @@ def Caustics(fpath, v_lower, v_upper, r_max, r200 = None, r_res = 250, v_res = 2
     # shortlist candidate members using hierarchical clustering
     cand_mem_idx = hier_clustering(gal_ra, gal_dec, gal_v)
     vvar = astropy.stats.biweight_midvariance(v[cand_mem_idx])
-
+    print("vdisp : {}".format(np.sqrt(vvar)))
 
     if r200 == None:
         #r200 = np.average(r)
@@ -119,8 +119,8 @@ def Caustics(fpath, v_lower, v_upper, r_max, r200 = None, r_res = 250, v_res = 2
 
     # minimize S(k) to get optimal kappa value
     print("Minimizing S(k) to find kappa.")
-    #kappa_guess = np.average(den)
-    kappa_guess = (den.max() + den.min())/2
+    kappa_guess = np.average(den)
+    #kappa_guess = (den.max() + den.min())/2
     #a = kappa_guess*0.5
     #b = kappa_guess*2.0
     a = den.min()
@@ -130,11 +130,12 @@ def Caustics(fpath, v_lower, v_upper, r_max, r200 = None, r_res = 250, v_res = 2
     TOL = kappa_guess * 1e-5
     res = scipy.optimize.minimize(fn, x0=[kappa_guess], bounds=[(den.min(), den.max())], tol=TOL)
     kappa = res.x[0]
+    print("     success : {}".format(res.success))
     print("  init guess : {}".format(kappa_guess))
     print("   iteration : {}".format(res.nit))
     print("function val : {}".format(res.fun))
     print("       kappa : {}".format(kappa))
-    print("    vel diff : {}".format(res.fun**0.25))
+    print("    vel diff : {}".format(res.fun**0.25 / q))
 
     
     
@@ -150,7 +151,7 @@ def Caustics(fpath, v_lower, v_upper, r_max, r200 = None, r_res = 250, v_res = 2
     cmap = plt.cm.gist_heat
     dmax = np.max(den)
     dmin = np.min(den)
-    conf = plt.contourf(r_grid, v_grid, den, levels = np.linspace(dmin,dmax,100),cmap = "coolwarm", alpha=1)    # filled contour
+    conf = plt.contourf(r_grid, v_grid, den, levels = np.linspace(dmin,dmax,100), cmap = "coolwarm", alpha=1)    # filled contour
     plt.colorbar(conf)
 
     con = plt.contour(r_grid, v_grid, den, levels = (kappa,))
@@ -404,8 +405,8 @@ def S(kappa, r, v, r_grid, v_grid, den, r200, vvar):
 
     v_esc_mean_squared = np.trapz((A[r_grid < r200]**2) * phi[r_grid < r200], x = r_grid[r_grid < r200]) / np.trapz(phi[r_grid < r200], x = r_grid[r_grid < r200])
     
-    v_mean_squared = astropy.stats.biweight_midvariance(v[r < r200])
-    #v_mean_squared = vvar              # In Diaferio 1999 and Serra et al. 2011, the mean of the squared velocity is independent of kappa.
+    #v_mean_squared = astropy.stats.biweight_midvariance(v[r < r200])
+    v_mean_squared = vvar              # In Diaferio 1999 and Serra et al. 2011, the mean of the squared velocity is independent of kappa.
     return (v_esc_mean_squared - 4*v_mean_squared)**2
     
 
