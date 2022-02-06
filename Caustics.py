@@ -128,7 +128,6 @@ def Caustics(fpath, v_lower, v_upper, r_max, r200 = None, r_res = 250, v_res = 2
     fn = lambda kappa: S(kappa, r, v, r_grid, v_grid, den, r200, vvar)
     #kappa = minimize_fn(fn, a, b, positive = True, search_all = False)
     TOL = kappa_guess * 1e-5
-    #'''
     res = scipy.optimize.minimize(fn, x0=[kappa_guess], bounds=[(den.min(), den.max())], tol=TOL)
     kappa = res.x[0]
     print("     success : {}".format(res.success))
@@ -136,13 +135,11 @@ def Caustics(fpath, v_lower, v_upper, r_max, r200 = None, r_res = 250, v_res = 2
     print("   iteration : {}".format(res.nit))
     print("function val : {}".format(res.fun))
     print("       kappa : {}".format(kappa))
-    print("    vel diff : {}".format(res.fun**0.25))#'''
+    print("    vel diff : {}".format(res.fun**0.25 / q))
 
     
-    print("init val : {}".format(kappa_guess))
-    print("   kappa : {}".format(kappa))
-    print("    S(k) : {}".format(fn(kappa)))
-    print("vel diff : {}".format(fn(kappa)**0.25))
+    
+    #print("kappa found. kappa =  {}, S(k) = {}.".format(kappa, fn(kappa)))
     print("")
    
     # calculate A(r) with the minimized kappa
@@ -456,7 +453,7 @@ def minimize_fn(fn, a, b, positive = False, it = 0, search_all = False):
         for i in range(search_range.size):
             x = search_range[i]
             val = fn(x)
-            #print("{} : {}".format(x, val))
+            #print("{} : {}".format(i, val))
             if val < min_val:
                 min_idx = i
                 min_val = val
