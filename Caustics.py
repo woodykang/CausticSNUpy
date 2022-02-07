@@ -252,7 +252,7 @@ def Diaferio_density(x_data, y_data):
     b = 2
     print("Calculating h_c.")
     #h_c = minimize_fn(fn, a, b, positive = True, search_all = True)
-    res = scipy.optimize.minimize(fn, x0=[0.01], bounds=[(0, 10)])
+    res = scipy.optimize.minimize(fn, x0=[0.1], bounds=[(0, 10)])
     h_c = res.x[0]
     print("h_c calculation finished")
     print("       success : {}".format(res.success))
