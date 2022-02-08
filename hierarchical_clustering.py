@@ -144,7 +144,7 @@ def hier_clustering(gal_ra, gal_dec, gal_v):
         if np.where(np.abs(sig_pl - sigma)/sig_pl < delta)[0].size < 10:
             cut_idx = 0
         else:
-            cut_idx = np.where(np.abs(sig_pl - sigma)/sig_pl < delta)[0][4]
+            cut_idx = np.where(np.abs(sig_pl - sigma)/sig_pl < delta)[0][0]
     
     cand_mem_idx = leaves[mainbranch[cut_idx]-N]
     cand_gal_ra = gal_ra[cand_mem_idx]

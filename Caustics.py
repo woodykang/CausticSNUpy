@@ -64,16 +64,17 @@ def Caustics(fpath, v_lower, v_upper, r_max, r200 = None, r_res = 250, v_res = 2
     print("Number of galaxies in vel and r_max limit : {}".format(r.size))
     # shortlist candidate members using hierarchical clustering
     cand_mem_idx = hier_clustering(gal_ra, gal_dec, gal_v)
+    print("Number of candidate members : {}".format(len(cand_mem_idx)))
     vvar = np.var(v[cand_mem_idx])
     print("vdisp : {}".format(np.sqrt(vvar)))
 
     if r200 == None:
-        r200 = np.average(r)
+        r200 = np.average(r[cand_mem_idx])
         '''
         sigma = astropy.stats.biweight_scale(v[cand_mem_idx])
         Hz = LCDM.H(cl_z).to(u.km / u.s / u.Mpc).value
         r200 = (np.sqrt(3) * sigma) / (10*Hz)               # eq. 8 from Carlberg et al. 1996
-        '''
+        #'''
         print("r200 : {}".format(r200))
     
     print("Data unpacked.")
@@ -118,14 +119,14 @@ def Caustics(fpath, v_lower, v_upper, r_max, r200 = None, r_res = 250, v_res = 2
 
     # minimize S(k) to get optimal kappa value
     print("Minimizing S(k) to find kappa.")
-    #kappa_guess = np.average(den)
-    kappa_guess = (den.max() + den.min())/2
+    kappa_guess = np.average(den)
+    #kappa_guess = (den.max() + den.min())/2
     #a = kappa_guess*0.5
     #b = kappa_guess*2.0
     a = den.min()
     b = den.max()
     fn = lambda kappa: S(kappa, r, v, r_grid, v_grid, den, r200, vvar)
-    kappa = minimize_fn(fn, a, b, positive = True, search_all = False)
+    kappa = minimize_fn(fn, a, b, positive = True, search_all = True)
     #kappa = iterative_minimize(fn, init = a, step = (b-a)/100, max = b, print_proc = True)
     '''
     res = scipy.optimize.minimize(fn, x0=[kappa_guess], bounds=[(den.min(), den.max())])
@@ -254,9 +255,9 @@ def Diaferio_density(x_data, y_data):
     a = 1e-5
     b = 2
     print("Calculating h_c.")
-    #h_c = minimize_fn(fn, a, b, positive = True, search_all = False)
+    h_c = minimize_fn(fn, a, b, positive = True, search_all = False)
     #h_c = iterative_minimize(fn, init = 0.005, step = 0.01, max = 10, print_proc=True)
-    #'''
+    '''
     res = scipy.optimize.minimize(fn, x0=[0.1], bounds=[(0, 10)])
     h_c = res.x[0]
     print("h_c calculation finished")
@@ -438,7 +439,7 @@ def S(kappa, r, v, r_grid, v_grid, den, r200, vvar):
 
     v_esc_mean_squared = np.trapz((A[r_grid < r200]**2) * phi[r_grid < r200], x = r_grid[r_grid < r200]) / np.trapz(phi[r_grid < r200], x = r_grid[r_grid < r200])
     
-    #v_mean_squared = np.var(v[r < r200])
+    #v_mean_squared = astropy.stats.biweight_midvariance(v)
     v_mean_squared = vvar              # In Diaferio 1999 and Serra et al. 2011, the mean of the squared velocity is independent of kappa.
     return (v_esc_mean_squared - 4*v_mean_squared)**2
     
@@ -453,6 +454,9 @@ def calculate_A(kappa, den, r_grid, v_grid):
         r_cont = contour[:,1]
         v_cont = contour[:,0]
         
+        #if (v_cont.max()*v_step + v_grid.min() < 0) or (v_cont.min()*v_step + v_grid.min() > 0):
+        #    continue
+
         if not (r_cont[0] == r_cont[-1] and v_cont[0] == v_cont[-1]):   # consider only non-looping contours
             int_idx = (r_cont == r_cont.astype(int))
             r_cont_grid = r_cont[int_idx].astype(int)
@@ -492,8 +496,8 @@ def minimize_fn(fn, a, b, positive = False, it = 0, search_all = False):
         
         print("min_idx : {}, min_x : {}, min_val : {}".format(min_idx, search_range[min_idx], min_val))
         #return search_range[min_idx]
-        a = max(search_range[min_idx - 1], a)
-        b = min(search_range[min_idx + 1], b)
+        a = max(search_range[min_idx - 2] if min_idx > 1 else search_range[min_idx - 1], a)
+        b = min(search_range[min_idx + 2] if min_idx < search_range.size-2 else search_range[min_idx + 1], b)
         print("search range: {} ~ {}".format(a, b))
 
     a_init = a
@@ -602,6 +606,9 @@ def iterative_minimize(fn, init, step, max, print_proc = False):
 
 def grad_restrict(A, r, grad_limit = 2):
     for i in range(A.size-1):
+        if (A[i] >= A[i+1]):
+            continue
+
         if (A[i] <= 0) or (A[i+1] <= 0) or (r[i] == 0):
             continue
         
