@@ -50,8 +50,6 @@ def Caustics(fpath, v_lower, v_upper, r_max, r200 = None, r_res = 250, v_res = 2
     v = (gal_v - cl_v)/(1+cl_z)                 # relative los velocity with regard to cluster center
 
     # apply cutoffs given by input
-    if r_max == None:
-        r_max = r200*5
     
     cutoff_idx = (gal_v > v_lower) & (gal_v < v_upper) & (r < r_max)
     gal_ra  = gal_ra[ cutoff_idx]
@@ -63,18 +61,19 @@ def Caustics(fpath, v_lower, v_upper, r_max, r200 = None, r_res = 250, v_res = 2
     v_min = v_lower - cl_v      # lower bound of v
     v_max = v_upper - cl_v      # upper bound of v
 
+    print("Number of galaxies in vel and r_max limit : {}".format(r.size))
     # shortlist candidate members using hierarchical clustering
     cand_mem_idx = hier_clustering(gal_ra, gal_dec, gal_v)
-    vvar = astropy.stats.biweight_midvariance(v[cand_mem_idx])
+    vvar = np.var(v[cand_mem_idx])
     print("vdisp : {}".format(np.sqrt(vvar)))
 
     if r200 == None:
-        #r200 = np.average(r)
-        #'''
+        r200 = np.average(r)
+        '''
         sigma = astropy.stats.biweight_scale(v[cand_mem_idx])
         Hz = LCDM.H(cl_z).to(u.km / u.s / u.Mpc).value
         r200 = (np.sqrt(3) * sigma) / (10*Hz)               # eq. 8 from Carlberg et al. 1996
-        #'''
+        '''
         print("r200 : {}".format(r200))
     
     print("Data unpacked.")
@@ -119,27 +118,29 @@ def Caustics(fpath, v_lower, v_upper, r_max, r200 = None, r_res = 250, v_res = 2
 
     # minimize S(k) to get optimal kappa value
     print("Minimizing S(k) to find kappa.")
-    kappa_guess = np.average(den)
-    #kappa_guess = (den.max() + den.min())/2
+    #kappa_guess = np.average(den)
+    kappa_guess = (den.max() + den.min())/2
     #a = kappa_guess*0.5
     #b = kappa_guess*2.0
     a = den.min()
     b = den.max()
     fn = lambda kappa: S(kappa, r, v, r_grid, v_grid, den, r200, vvar)
-    #kappa = minimize_fn(fn, a, b, positive = True, search_all = False)
-    TOL = kappa_guess * 1e-5
-    res = scipy.optimize.minimize(fn, x0=[kappa_guess], bounds=[(den.min(), den.max())], tol=TOL)
+    kappa = minimize_fn(fn, a, b, positive = True, search_all = False)
+    #kappa = iterative_minimize(fn, init = a, step = (b-a)/100, max = b, print_proc = True)
+    '''
+    res = scipy.optimize.minimize(fn, x0=[kappa_guess], bounds=[(den.min(), den.max())])
     kappa = res.x[0]
     print("     success : {}".format(res.success))
     print("  init guess : {}".format(kappa_guess))
     print("   iteration : {}".format(res.nit))
     print("function val : {}".format(res.fun))
     print("       kappa : {}".format(kappa))
-    print("    vel diff : {}".format(res.fun**0.25 / q))
+    print("    vel diff : {}".format(res.fun**0.25))
+    #'''
 
     
     
-    #print("kappa found. kappa =  {}, S(k) = {}.".format(kappa, fn(kappa)))
+    print("kappa found. kappa =  {}, S(k) = {}.".format(kappa, fn(kappa)))
     print("")
    
     # calculate A(r) with the minimized kappa
@@ -241,6 +242,8 @@ def adaptive_Gifford_density(x_data, y_data):
 def Diaferio_density(x_data, y_data):
     N = x_data.size
     h_opt = 6.24/(N**(1/6)) * np.sqrt((astropy.stats.biweight_scale(x_data)**2 + astropy.stats.biweight_scale(y_data)**2)/2)
+    print("    N : {}".format(N))
+    print("h_opt : {}".format(h_opt))
     
     gamma = 10**(np.sum(np.log10(fq(x_data, y_data, x_data, y_data, triweight, h_opt)))/N)
     #gamma = np.prod(fq(x_data, y_data, x_data, y_data, triweight, h_opt))**(1/N)
@@ -251,13 +254,16 @@ def Diaferio_density(x_data, y_data):
     a = 1e-5
     b = 2
     print("Calculating h_c.")
-    #h_c = minimize_fn(fn, a, b, positive = True, search_all = True)
+    #h_c = minimize_fn(fn, a, b, positive = True, search_all = False)
+    #h_c = iterative_minimize(fn, init = 0.005, step = 0.01, max = 10, print_proc=True)
+    #'''
     res = scipy.optimize.minimize(fn, x0=[0.1], bounds=[(0, 10)])
     h_c = res.x[0]
     print("h_c calculation finished")
     print("       success : {}".format(res.success))
     print("      iteraion : {}".format(res.nit))
     print("function value : {}".format(res.fun))
+    #'''
     print("           h_c : {}".format(h_c))
     h = h_c * h_opt * lam
     
@@ -281,7 +287,7 @@ def h_cost_function(h_c, h_opt, lam, x_data, y_data):
     y_grid = np.linspace(y_min, y_max, y_res)
     X, Y = np.meshgrid(x_grid, y_grid)
     f_squared = fq(X, Y, x_data, y_data, triweight, h)**2
-    term_1 = np.trapz(np.trapz(f_squared, dx = x_grid[1] - x_grid[0], axis = 0), dx = y_grid[1] - y_grid[0])
+    term_1 = np.trapz(np.trapz(f_squared, dx = y_grid[1] - y_grid[0], axis = -1), dx = x_grid[1] - x_grid[0])
     
     # calculating the second term
     x_pairs = np.subtract.outer(x_data, x_data)
@@ -290,6 +296,32 @@ def h_cost_function(h_c, h_opt, lam, x_data, y_data):
     b = np.sum(triweight(0, 0, h) / (h[:, np.newaxis])**2)
     term_2 = 2/(N*(N - 1)) * (a - b)
     
+    return term_1 - term_2
+
+def M_0(h_c, h_opt, lam, x_data, y_data):
+    h = h_c * h_opt * lam
+    N = x_data.size
+
+    # calculating the first term
+    x_min = np.min(x_data - h)
+    x_max = np.max(x_data + h)
+    y_min = np.min(y_data - h)
+    y_max = np.max(y_data + h)
+    
+    x_res = 100
+    y_res = 100
+    x_grid = np.linspace(x_min, x_max, x_res)
+    y_grid = np.linspace(y_min, y_max, y_res)
+    X, Y = np.meshgrid(x_grid, y_grid)
+    f_squared = fq(X, Y, x_data, y_data, triweight, h)**2
+    term_1 = np.trapz(np.trapz(f_squared, x = y_grid, axis = -1), x = x_grid)
+
+    term_2 = 0
+    idx = np.arange(N)
+    for i in range(N):
+        term_2 += fq(x_data[i], y_data[i], x_data[idx!=i], y_data[idx!=i], triweight, h[idx!=i])
+    term_2 = 2/N * term_2 
+
     return term_1 - term_2
 
 def triweight(x, y, h):
@@ -406,7 +438,7 @@ def S(kappa, r, v, r_grid, v_grid, den, r200, vvar):
 
     v_esc_mean_squared = np.trapz((A[r_grid < r200]**2) * phi[r_grid < r200], x = r_grid[r_grid < r200]) / np.trapz(phi[r_grid < r200], x = r_grid[r_grid < r200])
     
-    #v_mean_squared = astropy.stats.biweight_midvariance(v[r < r200])
+    #v_mean_squared = np.var(v[r < r200])
     v_mean_squared = vvar              # In Diaferio 1999 and Serra et al. 2011, the mean of the squared velocity is independent of kappa.
     return (v_esc_mean_squared - 4*v_mean_squared)**2
     
@@ -421,7 +453,7 @@ def calculate_A(kappa, den, r_grid, v_grid):
         r_cont = contour[:,1]
         v_cont = contour[:,0]
         
-        if not (r_cont[0] == r_cont[-1] and v_cont[0] == v_cont[-1]):   # consider only non-looping contours           
+        if not (r_cont[0] == r_cont[-1] and v_cont[0] == v_cont[-1]):   # consider only non-looping contours
             int_idx = (r_cont == r_cont.astype(int))
             r_cont_grid = r_cont[int_idx].astype(int)
             v_cont_grid = v_cont[int_idx]
@@ -460,8 +492,8 @@ def minimize_fn(fn, a, b, positive = False, it = 0, search_all = False):
         
         print("min_idx : {}, min_x : {}, min_val : {}".format(min_idx, search_range[min_idx], min_val))
         #return search_range[min_idx]
-        a = max(search_range[min_idx] - (b-a)*0.25, a)
-        b = min(search_range[min_idx] + (b-a)*0.25, b)
+        a = max(search_range[min_idx - 1], a)
+        b = min(search_range[min_idx + 1], b)
         print("search range: {} ~ {}".format(a, b))
 
     a_init = a
@@ -469,7 +501,7 @@ def minimize_fn(fn, a, b, positive = False, it = 0, search_all = False):
     
     R = (np.sqrt(5)-1)*0.5        # golden ratio
     
-    TOL = 1e-5 * abs(b - a)
+    TOL = 1e-6 * abs(b - a)
     if TOL == 0:
         TOL = 1e-5
     
@@ -521,6 +553,52 @@ def minimize_fn(fn, a, b, positive = False, it = 0, search_all = False):
     
     print("value : {} / fn : {}".format(a, f1))
     return a
+
+def iterative_minimize(fn, init, step, max, print_proc = False):
+    x0 = init
+    f0 = fn(x0)
+
+    x1 = init + step
+    f1 = fn(x1)
+
+    x2 = init + 2*step
+    f2 = fn(x2)
+    if print_proc:
+        print("h_c = {:.6f} : fn = {:.6e}".format(x0, f0))
+        print("h_c = {:.6f} : fn = {:.6e}".format(x1, f1))
+        while(x1 < max):
+            print("h_c = {:.6f} : fn = {:.6e}".format(x2, f2))
+            if (f0 > f1) & (f1 < f2):
+                print("Parabolic minimize.")
+                x = x1 - 0.5 * ((x1 - x0)**2 * (f1 - f2) - (x1 - x2)**2 * (f1 - f0))/( (x1 - x0)*(f1 - f2) - (x1 - x2)*(f1 - f0))
+                return x
+            x0 += step
+            x1 += step
+            x2 += step
+
+            f0 = f1
+            f1 = f2
+            f2 = fn(x2)
+    
+    else:
+        while(x1 < max):
+            if (f0 > f1) & (f1 < f2):
+                print("Parabolic minimize.")
+                x = x1 - 0.5 * ((x1 - x0)**2 * (f1 - f2) - (x1 - x2)**2 * (f1 - f0))/( (x1 - x0)*(f1 - f2) - (x1 - x2)*(f1 - f0))
+                return x
+            x0 += step
+            x1 += step
+            x2 += step
+
+            f0 = f1
+            f1 = f2
+            f2 = fn(x2)
+    
+    if x1 == max:
+        raise Exception("Unable to minimize function.")
+
+    return False
+
 
 def grad_restrict(A, r, grad_limit = 2):
     for i in range(A.size-1):
