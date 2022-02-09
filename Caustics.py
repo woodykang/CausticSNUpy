@@ -65,7 +65,7 @@ def Caustics(fpath, v_lower, v_upper, r_max, r200 = None, r_res = 250, v_res = 2
     # shortlist candidate members using hierarchical clustering
     cand_mem_idx = hier_clustering(gal_ra, gal_dec, gal_v)
     print("Number of candidate members : {}".format(len(cand_mem_idx)))
-    vvar = np.var(v[cand_mem_idx])
+    vvar = np.var(v[cand_mem_idx], ddof=1)
     print("vdisp : {}".format(np.sqrt(vvar)))
 
     if r200 == None:
@@ -150,11 +150,11 @@ def Caustics(fpath, v_lower, v_upper, r_max, r200 = None, r_res = 250, v_res = 2
     
     
     plt.plot(r, v, ".", c = "y", alpha = 0.5)
-    cmap = plt.cm.gist_heat
+    #cmap = plt.cm.gist_heat
     dmax = np.max(den)
     dmin = np.min(den)
     conf = plt.contourf(r_grid, v_grid, den, levels = np.linspace(dmin,dmax,100), cmap = "coolwarm", alpha=1)    # filled contour
-    plt.colorbar(conf)
+    #plt.colorbar(conf)
 
     con = plt.contour(r_grid, v_grid, den, levels = (kappa,))
 
@@ -162,7 +162,7 @@ def Caustics(fpath, v_lower, v_upper, r_max, r200 = None, r_res = 250, v_res = 2
     plt.plot(r_grid, -A, color = "orange")
 
 
-    plt.xlim(r_min, r_max)
+    plt.xlim(r_min, 3)
     plt.ylim(-2000, 2000)
 
     plt.title("Redshift Diagram")
@@ -255,8 +255,8 @@ def Diaferio_density(x_data, y_data):
     a = 1e-5
     b = 2
     print("Calculating h_c.")
-    h_c = minimize_fn(fn, a, b, positive = True, search_all = False)
-    #h_c = iterative_minimize(fn, init = 0.005, step = 0.01, max = 10, print_proc=True)
+    #h_c = minimize_fn(fn, a, b, positive = True, search_all = False)
+    h_c = iterative_minimize(fn, init = 0.005, step = 0.01, max = 10, print_proc=True)
     '''
     res = scipy.optimize.minimize(fn, x0=[0.1], bounds=[(0, 10)])
     h_c = res.x[0]
@@ -604,11 +604,8 @@ def iterative_minimize(fn, init, step, max, print_proc = False):
     return False
 
 
-def grad_restrict(A, r, grad_limit = 2):
+def grad_restrict(A, r, grad_limit = 2, new_grad = 0.25):
     for i in range(A.size-1):
-        if (A[i] >= A[i+1]):
-            continue
-
         if (A[i] <= 0) or (A[i+1] <= 0) or (r[i] == 0):
             continue
         
@@ -618,7 +615,7 @@ def grad_restrict(A, r, grad_limit = 2):
         else:
             log_grad = (np.log(A[i+1])-np.log(A[i])) / (np.log(r[i+1]) - np.log(r[i]))
             if log_grad > grad_limit:
-                A[i+1] = np.exp( np.log(A[i]) + 0.5*(np.log(r[i+1]) - np.log(r[i])) )
+                A[i+1] = np.exp( np.log(A[i]) + new_grad*(np.log(r[i+1]) - np.log(r[i])) )
 
             #elif log_grad < -grad_limit:
             #    A[i+1] = np.exp( np.log(A[i]) - grad_limit*(np.log(r[i+1]) - np.log(r[i])) )
