@@ -8,7 +8,7 @@ import scipy.cluster
 # See Section 4.1 of Serra et al. 2011, MNRAS.
 
 
-def hier_clustering(gal_ra, gal_dec, gal_v):
+def hier_clustering(gal_ra, gal_dec, gal_v, threshold="AD"):
 
     ################### INPUTS ###################
     # gal_ra  : RA of galaxies in degree
@@ -118,6 +118,25 @@ def hier_clustering(gal_ra, gal_dec, gal_v):
     mainbranch = mainbranch[:-1]                    # exclude the last node, which is a leaf node.
 
     # find where to cut the binary tree
+    if threshold == "AD":
+        cut_idx = ADcut()
+    elif threshold == "ALS":
+        cut_idx = ALScut()
+    
+    cand_mem_idx = leaves[mainbranch[cut_idx]-N]
+    cand_gal_ra = gal_ra[cand_mem_idx]
+    cand_gal_dec = gal_dec[cand_mem_idx]
+    cand_gal_v = gal_v[cand_mem_idx]
+
+    cand_mem = np.zeros(N)
+    cand_mem[cand_mem_idx] = 1
+    
+    return cand_mem_idx
+
+def ADcut():
+    pass
+
+def ALScut():
     sigma = np.zeros(mainbranch.size)               # velocity dispersion at each level of the main branch.
     for i, node in enumerate(mainbranch):
         sigma[i] = np.std(gal_v[leaves[node-N]])
@@ -145,13 +164,5 @@ def hier_clustering(gal_ra, gal_dec, gal_v):
             cut_idx = 0
         else:
             cut_idx = np.where(np.abs(sig_pl - sigma)/sig_pl < delta)[0][0]
-    
-    cand_mem_idx = leaves[mainbranch[cut_idx]-N]
-    cand_gal_ra = gal_ra[cand_mem_idx]
-    cand_gal_dec = gal_dec[cand_mem_idx]
-    cand_gal_v = gal_v[cand_mem_idx]
-
-    cand_mem = np.zeros(N)
-    cand_mem[cand_mem_idx] = 1
-
-    return cand_mem_idx
+        
+    return cut_idx
