@@ -98,10 +98,9 @@ def hier_clustering(gal_ra, gal_dec, gal_v, threshold="AD"):
     # determin the main branch.
     mainbranch = np.asarray([nnode+N-1])                            # array storing the nodes on the mainbranch; The root node is initially stored in the array.
 
-    i = nnode+N-1                                                   # initial node of the branch (root node) / The body of the while loop below is done here separately to deal with the initial case.
-
+    i = nnode+N-1                                                   # initial node of the branch (root node)
     while(True):                                                    # The while loop iterates only if iterate is True, i.e. the left and right children of the root node are not leaf nodes.
-        lchild, rchild, _ = Z[i-N]                                  # left and right children of the node i.
+        lchild, rchild = Z[i-N, 0:2]                                  # left and right children of the node i.
         if lchild < N:                                              # Case: left child is a leaf node.
             i = rchild                                              #### The next node is set to the right child.
             mainbranch = np.append(mainbranch, [rchild])            #### Right child is added to the mainbranch, i.e. the mainbranch follows the right child.
@@ -117,26 +116,6 @@ def hier_clustering(gal_ra, gal_dec, gal_v, threshold="AD"):
 
     mainbranch = mainbranch[:-1]                    # exclude the last node, which is a leaf node.
 
-    # find where to cut the binary tree
-    if threshold == "AD":
-        cut_idx = ADcut()
-    elif threshold == "ALS":
-        cut_idx = ALScut()
-    
-    cand_mem_idx = leaves[mainbranch[cut_idx]-N]
-    cand_gal_ra = gal_ra[cand_mem_idx]
-    cand_gal_dec = gal_dec[cand_mem_idx]
-    cand_gal_v = gal_v[cand_mem_idx]
-
-    cand_mem = np.zeros(N)
-    cand_mem[cand_mem_idx] = 1
-    
-    return cand_mem_idx
-
-def ADcut():
-    pass
-
-def ALScut():
     sigma = np.zeros(mainbranch.size)               # velocity dispersion at each level of the main branch.
     for i, node in enumerate(mainbranch):
         sigma[i] = np.std(gal_v[leaves[node-N]])
@@ -145,6 +124,43 @@ def ALScut():
     hist, bins = np.histogram(sigma, bins='auto')                   # apply bins to get the mode
     sig_pl = (bins[np.argmax(hist)] + bins[np.argmax(hist)+1])/2    # mode of the velocity dispersions
 
+    # find where to cut the binary tree
+    if threshold == "AD":
+        cut_idx = ADcut(mainbranch, count_leaf, N, Z, sigma, sig_pl)
+    elif threshold == "ALS":
+        cut_idx = ALScut(sigma, sig_pl)
+    
+    cand_mem_idx = leaves[mainbranch[cut_idx]-N]
+
+    cand_mem = np.zeros(N)
+    cand_mem[cand_mem_idx] = 1
+    
+    return cand_mem_idx
+
+def ADcut(mainbranch, count_leaf, N, Z, sigma, sig_pl, f=0.1):
+    thresholds = np.asarray([0])
+    for i in range(mainbranch.size):
+        node = mainbranch[i]
+        lchild, rchild = Z[node-N, 0:2]
+        if lchild < N or rchild < N:
+            continue
+        
+        nd = count_leaf[node-N]
+        ns = min(count_leaf[lchild-N], count_leaf[rchild-N])
+        if ns > f*nd:
+            thresholds = np.append(thresholds, i)
+    
+    if np.where(np.abs(sig_pl - sigma[thresholds])/sig_pl < 0.1)[0].size == 0:
+        cut_idx = 0
+        print("No cut!")
+    else:
+        cut_idx = np.where(np.abs(sig_pl - sigma[thresholds])/sig_pl < 0.3)[0][0]
+    
+    return cut_idx
+        
+            
+
+def ALScut(sigma, sig_pl):
     N03 = (np.abs(sig_pl - sigma)/sig_pl < 0.3).size                # N_0.3 described in Section 4.2 of Serra et al. 2011.
 
     delta = 0.03                                                    # delta ranges from 0.03 to 0.1

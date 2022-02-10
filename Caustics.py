@@ -10,7 +10,7 @@ import astropy.stats
 from hierarchical_clustering import hier_clustering
 
 
-def Caustics(fpath, v_lower, v_upper, r_max, r200 = None, r_res = 250, v_res = 250, method = "Gifford"):
+def Caustics(fpath, v_lower, v_upper, r_max, r200 = None, r_res = 250, v_res = 250, method = "Gifford", BT_thr = "ALS"):
     '''
     Inputs
     ----------------
@@ -63,7 +63,7 @@ def Caustics(fpath, v_lower, v_upper, r_max, r200 = None, r_res = 250, v_res = 2
 
     print("Number of galaxies in vel and r_max limit : {}".format(r.size))
     # shortlist candidate members using hierarchical clustering
-    cand_mem_idx = hier_clustering(gal_ra, gal_dec, gal_v)
+    cand_mem_idx = hier_clustering(gal_ra, gal_dec, gal_v, threshold=BT_thr)
     print("Number of candidate members : {}".format(len(cand_mem_idx)))
     vvar = np.var(v[cand_mem_idx], ddof=1)
     print("vdisp : {}".format(np.sqrt(vvar)))
