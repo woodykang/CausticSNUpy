@@ -293,8 +293,8 @@ def h_cost_function(h_c, h_opt, lam, x_data, y_data):
     # calculating the second term
     x_pairs = np.subtract.outer(x_data, x_data)
     y_pairs = np.subtract.outer(y_data, y_data)
-    a = np.sum(triweight(x_pairs, y_pairs, h) / (h[:, np.newaxis]**2))
-    b = np.sum(triweight(0, 0, h) / (h[:, np.newaxis])**2)
+    a = np.sum(triweight(x_pairs/h, y_pairs/h) / (h[:, np.newaxis]**2))
+    b = np.sum(triweight(0, 0) / (h[:, np.newaxis])**2)
     term_2 = 2/(N*(N - 1)) * (a - b)
     
     return term_1 - term_2
@@ -325,12 +325,8 @@ def M_0(h_c, h_opt, lam, x_data, y_data):
 
     return term_1 - term_2
 
-def triweight(x, y, h):
-    d = np.sqrt(x**2 + y**2)
-    try:
-        t = (d/h[:, np.newaxis])
-    except:
-        t = d/h
+def triweight(x, y):
+    t = np.sqrt(x**2 + y**2)
     return 4/np.pi * ((1-t**2)**3) * (t < 1)
 
 def gauss2d(x, y, std):
@@ -379,7 +375,8 @@ def fq(x, y, x_data, y_data, K, h):
     x_pairs = np.subtract.outer(x, x_data)
     y_pairs = np.subtract.outer(y, y_data)
     
-           
+    return np.sum(K(x_pairs/h, y_pairs/h)/(h**2), axis=-1) / N
+    
     if np.size(h) == 1:
         s = np.sum(K(x_pairs, y_pairs, h)/(h**2), axis=-1)
     #elif len(h) > 2:
