@@ -65,6 +65,8 @@ def Caustics(fpath, v_lower, v_upper, r_max, r200 = None, r_res = 250, v_res = 2
     # shortlist candidate members using hierarchical clustering
     cand_mem_idx = hier_clustering(gal_ra, gal_dec, gal_v, threshold=BT_thr)
     print("Number of candidate members : {}".format(len(cand_mem_idx)))
+    #r = r[cand_mem_idx]
+    #v = v[cand_mem_idx]
     vvar = np.var(v[cand_mem_idx], ddof=1)
     print("vdisp : {}".format(np.sqrt(vvar)))
 
@@ -89,15 +91,15 @@ def Caustics(fpath, v_lower, v_upper, r_max, r200 = None, r_res = 250, v_res = 2
     y_data = v/q
     
     # mirror the data for boundary correction
-    x_data_mirrored = np.concatenate((x_data, -x_data))
-    y_data_mirrored = np.concatenate((y_data,  y_data))
+    #x_data_mirrored = np.concatenate((x_data, -x_data))
+    #y_data_mirrored = np.concatenate((y_data,  y_data))
     
     if method == "Gifford":
         f = Gifford_density(x_data_mirrored, y_data_mirrored)
     elif method == "AdaptiveGifford":
         f = adaptive_Gifford_density(x_data_mirrored, y_data_mirrored)
     elif method == "Diaferio":
-        f = Diaferio_density(x_data_mirrored, y_data_mirrored)
+        f = Diaferio_density(x_data, y_data)
     else:
         raise ValueError(method + "is not a valid method.")
     
@@ -241,22 +243,27 @@ def adaptive_Gifford_density(x_data, y_data):
     return lambda x, y: fq(x, y, x_data, y_data, gauss2d, h)
 
 def Diaferio_density(x_data, y_data):
+
+    x_data_mirrored = np.concatenate((x_data, -x_data))
+    y_data_mirrored = np.concatenate((y_data,  y_data))
+
     N = x_data.size
-    h_opt = 6.24/(N**(1/6)) * np.sqrt((astropy.stats.biweight_scale(x_data)**2 + astropy.stats.biweight_scale(y_data)**2)/2)
+    h_opt = 6.24/(N**(1/6)) * np.sqrt((np.std(x_data, ddof=1)**2 + np.std(y_data,ddof=1)**2)/2)
     print("    N : {}".format(N))
     print("h_opt : {}".format(h_opt))
     
-    gamma = 10**(np.sum(np.log10(fq(x_data, y_data, x_data, y_data, triweight, h_opt)))/N)
+    gamma = 10**(np.sum(np.log10(fq(x_data_mirrored, y_data_mirrored, x_data_mirrored, y_data_mirrored, triweight, h_opt)))/(2*N))
     #gamma = np.prod(fq(x_data, y_data, x_data, y_data, triweight, h_opt))**(1/N)
-    lam = (gamma/fq(x_data, y_data, x_data, y_data, triweight, h_opt))**0.5
-    
-    fn = lambda h_c: h_cost_function(h_c, h_opt, lam, x_data, y_data)
-    
+    lam = (gamma/fq(x_data_mirrored, y_data_mirrored, x_data_mirrored, y_data_mirrored, triweight, h_opt))**0.5
+
+    fn = lambda h_c: M_0(h_c, h_opt, lam, x_data_mirrored, y_data_mirrored)
+
     a = 1e-5
     b = 2
     print("Calculating h_c.")
     #h_c = minimize_fn(fn, a, b, positive = True, search_all = False)
     h_c = iterative_minimize(fn, init = 0.005, step = 0.01, max = 10, print_proc=True)
+    #h_c = 0.208
     '''
     res = scipy.optimize.minimize(fn, x0=[0.1], bounds=[(0, 10)])
     h_c = res.x[0]
@@ -266,11 +273,12 @@ def Diaferio_density(x_data, y_data):
     print("function value : {}".format(res.fun))
     #'''
     print("           h_c : {}".format(h_c))
+    
     h = h_c * h_opt * lam
     
     
     #h = h_opt * lam
-    return lambda x, y: fq(x, y, x_data, y_data, triweight, h)
+    return lambda x, y: fq(x, y, x_data_mirrored, y_data_mirrored, triweight, h)
 
 def h_cost_function(h_c, h_opt, lam, x_data, y_data):
     h = h_c * h_opt * lam
