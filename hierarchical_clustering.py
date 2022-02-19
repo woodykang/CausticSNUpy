@@ -176,9 +176,11 @@ def ALScut(sigma, sig_pl):
         cut_idx = 0
 
     else:
-        if np.where(np.abs(sig_pl - sigma)/sig_pl < delta)[0].size < 10:
+        if np.where(np.abs(sig_pl - sigma)/sig_pl < delta)[0].size < 5:
             cut_idx = 0
         else:
-            cut_idx = np.where(np.abs(sig_pl - sigma)/sig_pl < delta)[0][0]
+            cand_cut_idx = np.where(np.abs(sig_pl - sigma)/sig_pl < delta)[0][0:5]
+            cut_idx = cand_cut_idx[np.argmin(np.abs(sig_pl - sigma[cand_cut_idx]))]
+
         
     return cut_idx
