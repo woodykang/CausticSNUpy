@@ -95,9 +95,9 @@ def Caustics(fpath, v_lower, v_upper, r_max, r200 = None, r_res = 250, v_res = 2
     #y_data_mirrored = np.concatenate((y_data,  y_data))
     
     if method == "Gifford":
-        f = Gifford_density(x_data_mirrored, y_data_mirrored)
+        f = Gifford_density(x_data, y_data)
     elif method == "AdaptiveGifford":
-        f = adaptive_Gifford_density(x_data_mirrored, y_data_mirrored)
+        f = adaptive_Gifford_density(x_data, y_data)
     elif method == "Diaferio":
         f = Diaferio_density(x_data, y_data)
     else:
@@ -256,7 +256,7 @@ def Diaferio_density(x_data, y_data):
     #gamma = np.prod(fq(x_data, y_data, x_data, y_data, triweight, h_opt))**(1/N)
     lam = (gamma/fq(x_data_mirrored, y_data_mirrored, x_data_mirrored, y_data_mirrored, triweight, h_opt))**0.5
 
-    fn = lambda h_c: M_0(h_c, h_opt, lam, x_data_mirrored, y_data_mirrored)
+    fn = lambda h_c: h_cost_function(h_c, h_opt, lam, x_data_mirrored, y_data_mirrored)
 
     a = 1e-5
     b = 2
@@ -301,8 +301,8 @@ def h_cost_function(h_c, h_opt, lam, x_data, y_data):
     # calculating the second term
     x_pairs = np.subtract.outer(x_data, x_data)
     y_pairs = np.subtract.outer(y_data, y_data)
-    a = np.sum(triweight(x_pairs/h, y_pairs/h) / (h[:, np.newaxis]**2))
-    b = np.sum(triweight(0, 0) / (h[:, np.newaxis])**2)
+    a = np.sum(triweight(x_pairs/h, y_pairs/h) / (h**2))
+    b = triweight(0, 0) * np.sum(1/(h**2))
     term_2 = 2/(N*(N - 1)) * (a - b)
     
     return term_1 - term_2
