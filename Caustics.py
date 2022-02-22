@@ -28,8 +28,13 @@ def Caustics(fpath, v_lower, v_upper, r_max, H0 = 100, Om0 = 0.3, Ode0 = 0.7, Tc
 
     Outputs
     ----------------
-    r_grid:
-    v
+    r_grid  : numpy ndarray, r-axis grid of the redshift diagram
+    v_grid  : numpy ndarray, v-axis grid of the redshift diagram
+    A       : numpy ndarray, amplitude of the caustic lines evaluated at r_grid
+    den     : numpy ndarray, number density on redshift diagram evaluted at r_grid and v_grid
+    r       : numpy ndarray, projected distance from cluster center to each galaxy (Mpc)
+    v       : numpy ndarray, relative l.o.s. velocity with regard to the cluster center (km/s)
+    member  : numpy ndarray, 0 if the galaxy is an interloper and 1 if the galaxy is a member
     '''
     
     # constants
@@ -51,7 +56,7 @@ def Caustics(fpath, v_lower, v_upper, r_max, H0 = 100, Om0 = 0.3, Ode0 = 0.7, Tc
     d_A = LCDM.angular_diameter_distance(cl_z)                  # angular diameter distance to the cluster center
     
     angle = astropy.coordinates.angular_separation(cl_ra*np.pi/180, cl_dec*np.pi/180, gal_ra*np.pi/180, gal_dec*np.pi/180)      # angular separation of galxay and cluster center
-    r = (angle*d_A).to(u.Mpc, equivalencies = u.dimensionless_angles()).value                                                   # projected distance from cluster center to each galaxies (in Mpc)
+    r = (angle*d_A).to(u.Mpc, equivalencies = u.dimensionless_angles()).value                                                   # projected distance from cluster center to each galaxy (in Mpc)
     v = (gal_v - cl_v)/(1+cl_z)                 # relative l.o.s velocity with regard to cluster center
 
     # apply cutoffs given by input
