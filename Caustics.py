@@ -1,8 +1,6 @@
 import numpy as np
-import scipy.optimize
 import skimage.measure
 import matplotlib.pyplot as plt
-from matplotlib import cm
 import astropy.coordinates
 import astropy.units as u
 import astropy.cosmology
@@ -10,25 +8,32 @@ import astropy.stats
 from hierarchical_clustering import hier_clustering
 
 
-def Caustics(fpath, v_lower, v_upper, r_max, r200 = None, r_res = 250, v_res = 250, BT_thr = "ALS"):
+def Caustics(fpath, v_lower, v_upper, r_max, H0 = 100, Om0 = 0.3, Ode0 = 0.7, Tcmb0 = 2.7, q = 25, r_res = 100, v_res = 100, BT_thr = "ALS"):
+    
     '''
     Inputs
     ----------------
-    fpath    : str,   file path of the txt file that contains the information of the galaxies. 
-    r200     : float, virial radius of the cluster
-    v_lower  : float, upper bound of line of sight velocities that member galaxies can have
-    v_upper  : float, lower bound of line of sight velocities that member galaxies can have
-    rmax     : float, maximum radius in which the member galaxies lie
-    method   : str,   method of kernel density estimation
+    fpath   : str,   file path of the txt file that contains the information of the galaxies. 
+    v_lower : float, upper bound of line of sight velocities that member galaxies can have
+    v_upper : float, lower bound of line of sight velocities that member galaxies can have
+    rmax    : float, maximum radius in which the member galaxies lie
+    H0      : float, Hubble constant in km/s/Mpc; default value 100
+    Om0     : float, matter density parameter for the cosmological model; default value 0.3
+    Ode0    : float, dark energy density paramter for the cosmological model; default value 0.7
+    Tcmb0   : float, Temperature of the CMB at z=0; default value 2.7
+    q       : float, scaling factor (see Section 4.1 of Diaferio 1999); default value 25
+    r_res   : int,   resolution of the redshift diagram in the r-axis; default value 100
+    v_res   : int,   resolution of the redshift diagram in the v-axis; default value 100
+    BT_thr  : str,   Binary Tree treshold, should be either "AD" or "ALS" (currently only ALS is supported); default value "ALS"
+
+    Outputs
+    ----------------
+    r_grid:
+    v
     '''
     
     # constants
     c     = 299792.458     # speed of light in km/s
-    H0    = 100            # Hubble constant in km/s/Mpc
-    Om0   = 0.3             # matter density parameter for the cosmological model
-    Ode0  = 0.7             # dark energy density paramter for the cosmological model
-    Tcmb0 = 2.7            # Temperature of the CMB at z=0
-    q     = 25              # scaling factor ratio of v to r
     
     # unpack data
     print("Unpacking data.")
@@ -36,21 +41,20 @@ def Caustics(fpath, v_lower, v_upper, r_max, r200 = None, r_res = 250, v_res = 2
                                                     # where N is number of galaxies observed, and
                                                     # cl_ra, cl_dec, cl_z are RA (deg), DEC (deg), los velocity (km/s) of the cluster
     cl_ra, cl_dec, cl_v = cluster_data[1:]
-    gal_ra, gal_dec, gal_v = np.loadtxt(fpath, skiprows=1, unpack=True)     # RA, Dec in degrees, los velocity in km/s
+    gal_ra, gal_dec, gal_v = np.loadtxt(fpath, skiprows=1, unpack=True)     # RA (deg), Dec (deg), l.o.s velocity (km/s)
     
     
     # calculate projected distance and radial velocity
-    LCDM = astropy.cosmology.LambdaCDM(H0, Om0, Ode0, Tcmb0)     #Lambda CDM model with the given parameters
+    LCDM = astropy.cosmology.LambdaCDM(H0, Om0, Ode0, Tcmb0)    #Lambda CDM model with the given parameters
     
-    cl_z = cl_v/c   # redshift of the cluster center
-    R = LCDM.angular_diameter_distance(cl_z)        # angular diameter distance to the cluster center
+    cl_z = cl_v/c                                               # redshift of the cluster center
+    d_A = LCDM.angular_diameter_distance(cl_z)                  # angular diameter distance to the cluster center
     
-    angle = astropy.coordinates.angular_separation(cl_ra*np.pi/180, cl_dec*np.pi/180, gal_ra*np.pi/180, gal_dec*np.pi/180)      #angular separation of galxay and cluster center
-    r = (angle*R).to(u.Mpc, equivalencies = u.dimensionless_angles()).value                                 # projected distance from cluster center to each galaxies
-    v = (gal_v - cl_v)/(1+cl_z)                 # relative los velocity with regard to cluster center
+    angle = astropy.coordinates.angular_separation(cl_ra*np.pi/180, cl_dec*np.pi/180, gal_ra*np.pi/180, gal_dec*np.pi/180)      # angular separation of galxay and cluster center
+    r = (angle*d_A).to(u.Mpc, equivalencies = u.dimensionless_angles()).value                                                   # projected distance from cluster center to each galaxies (in Mpc)
+    v = (gal_v - cl_v)/(1+cl_z)                 # relative l.o.s velocity with regard to cluster center
 
     # apply cutoffs given by input
-    
     cutoff_idx = (gal_v > v_lower) & (gal_v < v_upper) & (r < r_max)
     gal_ra  = gal_ra[ cutoff_idx]
     gal_dec = gal_dec[cutoff_idx]
@@ -62,61 +66,56 @@ def Caustics(fpath, v_lower, v_upper, r_max, r200 = None, r_res = 250, v_res = 2
     v_max = v_upper - cl_v      # upper bound of v
 
     print("Number of galaxies in vel and r_max limit : {}".format(r.size))
+
     # shortlist candidate members using hierarchical clustering
-    cand_mem_idx = hier_clustering(gal_ra, gal_dec, gal_v, threshold=BT_thr)
+    cand_mem_idx = hier_clustering(gal_ra, gal_dec, gal_v, threshold=BT_thr)            # indices of candidate members
+
     print("Number of candidate members : {}".format(len(cand_mem_idx)))
 
-    vvar = np.var(v[cand_mem_idx], ddof=1)
-    print("vdisp : {}".format(np.sqrt(vvar)))
-
-    if r200 == None:
-        r200 = np.average(r[cand_mem_idx])
-        '''
-        sigma = astropy.stats.biweight_scale(v[cand_mem_idx])
-        Hz = LCDM.H(cl_z).to(u.km / u.s / u.Mpc).value
-        r200 = (np.sqrt(3) * sigma) / (10*Hz)               # eq. 8 from Carlberg et al. 1996
-        #'''
-        print("r200 : {}".format(r200))
+    vvar = np.var(v[cand_mem_idx], ddof=1)      # variance of v calculated from candidate members; later to be used for function S(k)
+    R = np.average(r[cand_mem_idx])             # average projected distance from the center of the cluster to candidate member galaxies; later to be used for function S(k)
     
     print("Data unpacked.")
     print("")
     
-    # estimate number density in the redshift diagram
+    # estimate number density in the redshift diagram using adaptive kernel density estimation
     print("Estimating number density in phase space.")
     
-    x_data = r*H0
-    y_data = v/q
+    x_data = r*H0                               # rescaled data points in r-axis (in units of km/s)
+    y_data = v/q                                # rescaled data points in v-axis (in units of km/s)
     
     f = Diaferio_density(x_data, y_data)        # number density on redshift diagram
     
     print("Number density estimation done.")
     print("")
     
-    r_min = 0
-    r_grid = np.linspace(r_min, r_max, r_res)
-    v_grid = np.linspace(v_min, v_max, v_res)
+    r_min = 0                                   # minimum of r should be, obviously, 0
+    r_grid = np.linspace(r_min, r_max, r_res)   # grid of r-axis on the redshift diagram
+    v_grid = np.linspace(v_min, v_max, v_res)   # grid of v-axis on the redshift diagram
     
-    x_grid = r_grid*H0
-    y_grid = v_grid/q
+    x_grid = r_grid*H0                          # grid of rescaled r-axis (in units of km/s)
+    y_grid = v_grid/q                           # grid of rescaled v-axis (in units of km/s)
     
-    X, Y = np.meshgrid(x_grid, y_grid)
-    den = f(X, Y)
+    X, Y = np.meshgrid(x_grid, y_grid)          # mesh grid
+    den = f(X, Y)                               # number density estimated at each point X, Y
 
     # minimize S(k) to get optimal kappa value
     print("Minimizing S(k) to find kappa.")
 
     a = den.min()
     b = den.max()
-    fn = lambda kappa: S(kappa, r, v, r_grid, v_grid, den, r200, vvar)
-    kappa = minimize_fn(fn, a, b, positive = True, search_all = True)
+    fn = lambda kappa: S(kappa, r, v, r_grid, v_grid, den, R, vvar)             # lambda function is used to fix other parameters except for kappa; thus, fn is only a function of kappa
+    kappa = minimize_fn(fn, a, b, positive = True, search_all = True)           # kappa that minimizes fn (= S(k))
       
     print("kappa found. kappa =  {}, S(k) = {}.".format(kappa, fn(kappa)))
     print("")
    
     # calculate A(r) with the minimized kappa
     print("Drawing caustic lines.")
-    A = calculate_A(kappa, den, r_grid, v_grid)
+    A = calculate_A(kappa, den, r_grid, v_grid)                                 # amplitude of the caustic lines drawn from den at level kappa
     
+
+    # plot results
     plt.plot(r, v, ".", c = "y", alpha = 0.5)
 
     dmax = np.max(den)
@@ -135,117 +134,149 @@ def Caustics(fpath, v_lower, v_upper, r_max, r200 = None, r_res = 250, v_res = 2
     plt.ylabel("$(v_{gal}-v_{cl})/(1+z)$ (km/s)")
 
     plt.show()
-    
+    # end of plot results
+
     # determine membership
-    member = membership(r, v, r_grid, A)    # one-hot encoded
+    member = membership(r, v, r_grid, A)    # array of 0 and 1; 0 for interlopers and 1 for members
 
     return r_grid, v_grid, A, den, r, v, member
 
 def Diaferio_density(x_data, y_data):
+    
+    '''
+    Description
+    -----------------------------------
+    Estimating number density on redshift diagram using adaptive kernel density estimation.
 
+    Inputs
+    -----------------------------------
+    x_data  : numpy ndarray, 1D array containing rescaled r values of galaxies
+    y_data  : numpy ndarray, 1D array containing rescaled v values of galaxies
+
+    Output
+    ----------------------------------
+    funtion that returns the estimated number density on redshift diagram at given point (x, y). 
+    '''
+    # data points are mirrored to negative r (see the last two sentences from the second paragraph of Section 4.3, Serra et al. 2011)
     x_data_mirrored = np.concatenate((x_data, -x_data))
     y_data_mirrored = np.concatenate((y_data,  y_data))
 
-    N = x_data.size
-    h_opt = 6.24/(N**(1/6)) * np.sqrt((np.std(x_data, ddof=1)**2 + np.std(y_data,ddof=1)**2)/2)
-    print("    N : {}".format(N))
+    N = x_data.size                                                                                                                     # number of data points
+    h_opt = 6.24/(N**(1/6)) * np.sqrt((np.std(x_data, ddof=1)**2 + np.std(y_data,ddof=1)**2)/2)                                         # eq. 20 from Serra et al. 2011
     print("h_opt : {}".format(h_opt))
     
-    gamma = 10**(np.sum(np.log10(fq(x_data_mirrored, y_data_mirrored, x_data_mirrored, y_data_mirrored, triweight, h_opt)))/(2*N))
-    lam = (gamma/fq(x_data_mirrored, y_data_mirrored, x_data_mirrored, y_data_mirrored, triweight, h_opt))**0.5
+    gamma = 10**(np.sum(np.log10(fq(x_data_mirrored, y_data_mirrored, x_data_mirrored, y_data_mirrored, triweight, h_opt)))/(2*N))      # gamma  defined in Diaferio 1999, between eq. 17 and eq. 18; here, the term is divided by 2*N because N is the number of original (i.e. un-mirrored) data points
+    lam = (gamma/fq(x_data_mirrored, y_data_mirrored, x_data_mirrored, y_data_mirrored, triweight, h_opt))**0.5                         # lambda defined in Diaferio 1999, between eq. 17 and eq. 18
 
-    fn = lambda h_c: h_cost_function(h_c, h_opt, lam, x_data_mirrored, y_data_mirrored)
+    fn = lambda h_c: h_cost_function(h_c, h_opt, lam, x_data_mirrored, y_data_mirrored)                                                 # M_0 function defined in eq. 18 from Diaferio 1999
 
     print("Calculating h_c.")
-    h_c = iterative_minimize(fn, init = 0.005, step = 0.01, max = 10, print_proc=True)
+    h_c = iterative_minimize(fn, init = 0.005, step = 0.01, max = 10, print_proc=True)                                                  # imiated the minimization method used in CausticApp v1.6
     print("h_c : {}".format(h_c))
     
-    h = h_c * h_opt * lam
+    h = h_c * h_opt * lam                                                                                                               # final h_i (local smoothing length); size of h_i is same as x_data and y_data
 
-    return lambda x, y: fq(x, y, x_data_mirrored, y_data_mirrored, triweight, h)
+    return lambda x, y: fq(x, y, x_data_mirrored, y_data_mirrored, triweight, h)                                                        # return value: function that returns the number density on redshift diagram at given point (x, y). 
 
 def h_cost_function(h_c, h_opt, lam, x_data, y_data):
-    h = h_c * h_opt * lam
-    N = x_data.size
+    
+    '''
+    Description
+    -----------------------------------
+    Cost function which h_c should minimize (eq. 18 from Diaferio 1999).
+
+    Inputs
+    -----------------------------------
+    h_c     : float,            smoothing factor h_c
+    h_opt   : float,            optimal smoothing length (eq. 20 from Serra et al. 2011)
+    lam     : numpy ndarray,    local smoothing length; same size as x_data and y_data
+    x_data  : numpy ndarray,    1D array containing rescaled r values of galaxies
+    y_data  : numpy ndarray,    1D array containing rescaled v values of galaxies
+
+    Output
+    ----------------------------------
+    Value of cost function evaluated for given h_c     
+    '''
+
+    h = h_c * h_opt * lam       # local smoothing length
+    N = x_data.size             # number of data points
 
     # calculating the first term
-    x_min = np.min(x_data - h)
-    x_max = np.max(x_data + h)
-    y_min = np.min(y_data - h)
-    y_max = np.max(y_data + h)
+    ## set up grids for numerical integration; x_grid and y_grid here is different from those used in the main function Caustics().
+    ## Note that the value of triweight funtion is 0 outside (x/h)**1 + (y/h)**1 = 1
+    x_min = np.min(x_data - h)      # minimum value in the x_grid
+    x_max = np.max(x_data + h)      # maximum value in the x_grid
+    y_min = np.min(y_data - h)      # minimum value in the y_grid
+    y_max = np.max(y_data + h)      # maximum value in the y_grid
     
-    x_res = 100
-    y_res = 100
-    x_grid = np.linspace(x_min, x_max, x_res)
-    y_grid = np.linspace(y_min, y_max, y_res)
-    X, Y = np.meshgrid(x_grid, y_grid)
-    f_squared = fq(X, Y, x_data, y_data, triweight, h)**2
-    term_1 = np.trapz(np.trapz(f_squared, dx = y_grid[1] - y_grid[0], axis = -1), dx = x_grid[1] - x_grid[0])
+    x_res = 100                     # resolution of x_grid
+    y_res = 100                     # resolution of y_grid
+
+    x_grid = np.linspace(x_min, x_max, x_res)   # grid along rescaled r-axis (x-axis) used for numerical integration
+    y_grid = np.linspace(y_min, y_max, y_res)   # grid along rescaled v-axis (y-axis) used for numerical integration
+
+    X, Y = np.meshgrid(x_grid, y_grid)          # mesh grid
     
-    # calculating the second term
-    x_pairs = np.subtract.outer(x_data, x_data)
-    y_pairs = np.subtract.outer(y_data, y_data)
-    a = np.sum(triweight(x_pairs/h, y_pairs/h) / (h**2))
+    f_squared = fq(X, Y, x_data, y_data, triweight, h)**2           # squared value of fq
+
+    term_1 = np.trapz(np.trapz(f_squared, dx = y_grid[1] - y_grid[0], axis = -1), dx = x_grid[1] - x_grid[0])       # first term of M_0 is the integration of fq squared
+    
+    # calculating the second term (refer to eq. 3.37 and Section 5.3.4 of Silverman B. W., 1986, Density Estimation for Statistics and Data Analysis, Chapman & Hall, London)
+    x_pairs = np.subtract.outer(x_data, x_data)             # 2D array of size (N, N); element (i, j) is x_data[i]-x_data[j] i.e. pair-wise subtraction of x_data and x_data
+    y_pairs = np.subtract.outer(y_data, y_data)             # 2D array of size (N, N); element (i, j) is y_data[i]-y_data[j] i.e. pair-wise subtraction of y_data and y_data
+    a = np.sum(triweight(x_pairs/h, y_pairs/h) / (h**2))    # sum of fq evaluated at all data points (x, y)
     b = triweight(0, 0) * np.sum(1/(h**2))
     term_2 = 2/(N*(N - 1)) * (a - b)
-    
+
     return term_1 - term_2
 
 def triweight(x, y):
+    '''
+    Description
+    -----------------------------------
+    2D triwegith kernel
+
+    Inputs
+    -----------------------------------
+    x   : float, x coordinate 
+    y   : float, y coordinate
+
+    Output
+    ----------------------------------
+    Value of triweight kernel evaulated at (x, y).     
+    '''
+
     t = np.sqrt(x**2 + y**2)
-    return 4/np.pi * ((1-t**2)**3) * (t < 1)
+    return 4/np.pi * ((1-t**2)**3) * (t < 1)        # return 4/pi * (1-t**2)**3 if t<1; otherwise 0
 
 def fq(x, y, x_data, y_data, K, h):
     '''
+    Description
+    --------------------------------------
     Estimated number density function, using kernel density estimation.
     
     Inputs
     ---------------------------------------
-    x:        float, x-axis value of the point where the density is to be calculated
-    y:        float, y-axis value of the point where the density is to be calculated
-    x_data:   array-like, x-axis value of the observed data points
-    y_data:   array-like, y-axis value of the observed data points
-    K:        function, kernel function
-    h:        float or array-like, bandwidth of the kernel.
+    x       : float or numpy ndarray,   x-axis value(s) of the point(s) where the density is to be calculated
+    y       : float or numpy ndarray,   y-axis value(s) of the point(s) where the density is to be calculated
+    x_data  : numpy ndarray,            x-axis value of the observed data points
+    y_data  : numpy ndarray,            y-axis value of the observed data points
+    K       : function,                 kernel function
+    h       : float or numpy ndarray,   bandwidth of the kernel
     
     Output
     ---------------------------------------
-    estimated density value at the given point x, y.
+    Estimated density value at the given point (x, y).
     '''
+
+    N = x_data.size                             # number of data points
     
-    
-    N = x_data.size
-    
-    x_pairs = np.subtract.outer(x, x_data)
-    y_pairs = np.subtract.outer(y, y_data)
+    x_pairs = np.subtract.outer(x, x_data)      # 2D array of size (M, N) where M is the length of x; element (i, j) is x[i]-x_data[j] i.e. pair-wise subtraction of x and x_data
+    y_pairs = np.subtract.outer(y, y_data)      # 2D array of size (M, N) where M is the length of y; element (i, j) is y[i]-y_data[j] i.e. pair-wise subtraction of y and y_data
     
     return np.sum(K(x_pairs/h, y_pairs/h)/(h**2), axis=-1) / N
 
-def coor2idx(x, xmin, xmax, nstep):       # nstep: number of steps
-    '''
-    Calculates the corresponding index of a value in a list.
-    
-    Inputs
-    ------------------------------------
-    x:      float, value to be converted to index
-    xmin:   float, minimum value of the list
-    xmax:   float, maximum value of the list
-    nsteps: int, size of the array
-    
-    Output
-    --------------------------------------
-    idx: int, index corresponding to x in the list.
-    '''
-    
-    if np.any(x > xmax):
-        raise ValueError("x cannot be greater than xmax")
-    if np.any(x < xmin):
-        raise ValueError("x cannot be less than xmin")
-    
-    idx = np.int32((x-xmin)/(xmax - xmin)*nstep)
-    return idx
-
-def S(kappa, r, v, r_grid, v_grid, den, r200, vvar):
+def S(kappa, r, v, r_grid, v_grid, den, R, vvar):
     A = calculate_A(kappa, den, r_grid, v_grid)
     
     r_min = r_grid.min()
@@ -262,10 +293,10 @@ def S(kappa, r, v, r_grid, v_grid, den, r200, vvar):
     for i in range(phi.size):
         phi[i] = np.trapz(den[(v_grid < A[i]) & (v_grid > -A[i]), i], x = v_grid[(v_grid < A[i]) & (v_grid > -A[i])])
 
-    if np.trapz(phi[r_grid < r200], x = r_grid[r_grid < r200]) == 0:
+    if np.trapz(phi[r_grid < R], x = r_grid[r_grid < R]) == 0:
         return np.inf
 
-    v_esc_mean_squared = np.trapz((A[r_grid < r200]**2) * phi[r_grid < r200], x = r_grid[r_grid < r200]) / np.trapz(phi[r_grid < r200], x = r_grid[r_grid < r200])
+    v_esc_mean_squared = np.trapz((A[r_grid < R]**2) * phi[r_grid < R], x = r_grid[r_grid < R]) / np.trapz(phi[r_grid < R], x = r_grid[r_grid < R])
     
     v_mean_squared = vvar              # In Diaferio 1999 and Serra et al. 2011, the mean of the squared velocity is independent of kappa.
     return (v_esc_mean_squared - 4*v_mean_squared)**2
