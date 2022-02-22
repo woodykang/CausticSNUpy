@@ -10,7 +10,7 @@ import astropy.stats
 from hierarchical_clustering import hier_clustering
 
 
-def Caustics(fpath, v_lower, v_upper, r_max, r200 = None, r_res = 250, v_res = 250, method = "Gifford", BT_thr = "ALS"):
+def Caustics(fpath, v_lower, v_upper, r_max, r200 = None, r_res = 250, v_res = 250, BT_thr = "ALS"):
     '''
     Inputs
     ----------------
@@ -65,8 +65,7 @@ def Caustics(fpath, v_lower, v_upper, r_max, r200 = None, r_res = 250, v_res = 2
     # shortlist candidate members using hierarchical clustering
     cand_mem_idx = hier_clustering(gal_ra, gal_dec, gal_v, threshold=BT_thr)
     print("Number of candidate members : {}".format(len(cand_mem_idx)))
-    #r = r[cand_mem_idx]
-    #v = v[cand_mem_idx]
+
     vvar = np.var(v[cand_mem_idx], ddof=1)
     print("vdisp : {}".format(np.sqrt(vvar)))
 
@@ -80,35 +79,20 @@ def Caustics(fpath, v_lower, v_upper, r_max, r200 = None, r_res = 250, v_res = 2
         print("r200 : {}".format(r200))
     
     print("Data unpacked.")
-    #print("Cluster center coordinates: RA {} deg,  Dec {} deg".format(cl_ra, cl_dec))
-    #print("Cluster center radial velocity : {} km/s".format(cl_v))
     print("")
     
     # estimate number density in the redshift diagram
-    print("Estimating number density in phase space via " + method + " method.")
+    print("Estimating number density in phase space.")
     
     x_data = r*H0
     y_data = v/q
     
-    # mirror the data for boundary correction
-    #x_data_mirrored = np.concatenate((x_data, -x_data))
-    #y_data_mirrored = np.concatenate((y_data,  y_data))
-    
-    if method == "Gifford":
-        f = Gifford_density(x_data, y_data)
-    elif method == "AdaptiveGifford":
-        f = adaptive_Gifford_density(x_data, y_data)
-    elif method == "Diaferio":
-        f = Diaferio_density(x_data, y_data)
-    else:
-        raise ValueError(method + "is not a valid method.")
+    f = Diaferio_density(x_data, y_data)        # number density on redshift diagram
     
     print("Number density estimation done.")
     print("")
     
-    # undo mirror
     r_min = 0
-    
     r_grid = np.linspace(r_min, r_max, r_res)
     v_grid = np.linspace(v_min, v_max, v_res)
     
@@ -117,32 +101,15 @@ def Caustics(fpath, v_lower, v_upper, r_max, r200 = None, r_res = 250, v_res = 2
     
     X, Y = np.meshgrid(x_grid, y_grid)
     den = f(X, Y)
-    
 
     # minimize S(k) to get optimal kappa value
     print("Minimizing S(k) to find kappa.")
-    kappa_guess = np.average(den)
-    #kappa_guess = (den.max() + den.min())/2
-    #a = kappa_guess*0.5
-    #b = kappa_guess*2.0
+
     a = den.min()
     b = den.max()
     fn = lambda kappa: S(kappa, r, v, r_grid, v_grid, den, r200, vvar)
     kappa = minimize_fn(fn, a, b, positive = True, search_all = True)
-    #kappa = iterative_minimize(fn, init = a, step = (b-a)/100, max = b, print_proc = True)
-    '''
-    res = scipy.optimize.minimize(fn, x0=[kappa_guess], bounds=[(den.min(), den.max())])
-    kappa = res.x[0]
-    print("     success : {}".format(res.success))
-    print("  init guess : {}".format(kappa_guess))
-    print("   iteration : {}".format(res.nit))
-    print("function val : {}".format(res.fun))
-    print("       kappa : {}".format(kappa))
-    print("    vel diff : {}".format(res.fun**0.25))
-    #'''
-
-    
-    
+      
     print("kappa found. kappa =  {}, S(k) = {}.".format(kappa, fn(kappa)))
     print("")
    
@@ -150,19 +117,15 @@ def Caustics(fpath, v_lower, v_upper, r_max, r200 = None, r_res = 250, v_res = 2
     print("Drawing caustic lines.")
     A = calculate_A(kappa, den, r_grid, v_grid)
     
-    
     plt.plot(r, v, ".", c = "y", alpha = 0.5)
-    #cmap = plt.cm.gist_heat
+
     dmax = np.max(den)
     dmin = np.min(den)
     conf = plt.contourf(r_grid, v_grid, den, levels = np.linspace(dmin,dmax,100), cmap = "coolwarm", alpha=1)    # filled contour
-    #plt.colorbar(conf)
-
     con = plt.contour(r_grid, v_grid, den, levels = (kappa,))
 
     plt.plot(r_grid,  A, color = "orange", label = "caustic")
     plt.plot(r_grid, -A, color = "orange")
-
 
     plt.xlim(r_min, 3)
     plt.ylim(-2000, 2000)
@@ -178,70 +141,6 @@ def Caustics(fpath, v_lower, v_upper, r_max, r200 = None, r_res = 250, v_res = 2
 
     return r_grid, v_grid, A, den, r, v, member
 
-def Gifford_density(x_data, y_data):
-    '''
-    Estimates the number density function in the redshift diagram (phase space).
-    This function uses method described in Gifford et al. 2013. 
-    Basically, it uses standard kernel density estimation via Gaussian kernel with different bandwidths for r-axis and v-axis.
-    The bandwidths are proportional to the standard deviations along each axis.
-    
-    Inputs
-    ---------------------------------------------
-    x_data: array-like, scaled data points along the r-axis
-    y_data: array-like, scaled data points along the v-axis
-    
-    Note: The scaling is done by multiplying r by H, and dividing v by q.
-    
-    Output
-    ---------------------------------------------
-    Function that returns the number density at a given point x, y.
-    x and y are r and v scaled, just as the input arguments.
-    
-    '''
-    
-    
-    N = x_data.size                            # number of data points
-    h_x = (4/(3*N))**0.2 * astropy.stats.biweight_scale(x_data)     # bandwidth along the x-axis (scaled r-axis)
-    h_y = (4/(3*N))**0.2 * astropy.stats.biweight_scale(y_data)     # bandwidth along the y-axis (scaled v-axis)
-    h = np.asarray([h_x, h_y])                 # bandwidth as an array
-    
-    return lambda x, y: fq(x, y, x_data, y_data, gauss2d, h)
-
-def adaptive_Gifford_density(x_data, y_data):
-    
-    '''
-    Estimates the number density function in the redshift diagram (phase space).
-    This function is based on the method described in Gifford et al. 2013.
-    However, instead of using the standard kernel denstiy, the adaptive kernel density estimation is applied.
-    Thus, a local smoothing factor lambda is multiplied to the global bandwidth h.
-    The changes made to employ the adaptive method are from Diaferio 1999.
-    
-    Inputs
-    ---------------------------------------------
-    x_data: array-like, scaled data points along the r-axis
-    y_data: array-like, scaled data points along the v-axis
-    
-    Note: The scaling is done by multiplying r by H, and dividing v by q.
-    
-    Output
-    ---------------------------------------------
-    Function that returns the number density at a given point x, y.
-    x and y are r and v scaled, just as the input arguments.
-    
-    '''
-    
-    N = x_data.size                         # number of data points
-    h_x = (4/(3*N))**0.2 * astropy.stats.biweight_scale(x_data)   # global bandwidth along the x-axis (scaled r-axis)
-    h_y = (4/(3*N))**0.2 * astropy.stats.biweight_scale(y_data)   # global bandwidth along the y-axis (scaled v-axis)
-
-    gamma = 10**(np.sum(np.log10(fq(x_data, y_data, x_data, y_data, gauss2d, (h_x, h_y)))/N))
-    lam = (gamma/fq(x_data, y_data, x_data, y_data, gauss2d, (h_x, h_y)))**0.5        # local smoothing factor
-    #gamma = 10**(np.sum(np.log10(fq(x_data, y_data, x_data, y_data, gauss2d, (1, 1)))/N))
-    #lam = gamma/fq(x_data, y_data, x_data, y_data, gauss2d, (1, 1))        # local smoothing factor
-    h = np.vstack((h_x*lam, h_y*lam))                                          # bandwidth as an array
-    
-    return lambda x, y: fq(x, y, x_data, y_data, gauss2d, h)
-
 def Diaferio_density(x_data, y_data):
 
     x_data_mirrored = np.concatenate((x_data, -x_data))
@@ -253,31 +152,16 @@ def Diaferio_density(x_data, y_data):
     print("h_opt : {}".format(h_opt))
     
     gamma = 10**(np.sum(np.log10(fq(x_data_mirrored, y_data_mirrored, x_data_mirrored, y_data_mirrored, triweight, h_opt)))/(2*N))
-    #gamma = np.prod(fq(x_data, y_data, x_data, y_data, triweight, h_opt))**(1/N)
     lam = (gamma/fq(x_data_mirrored, y_data_mirrored, x_data_mirrored, y_data_mirrored, triweight, h_opt))**0.5
 
     fn = lambda h_c: h_cost_function(h_c, h_opt, lam, x_data_mirrored, y_data_mirrored)
 
-    a = 1e-5
-    b = 2
     print("Calculating h_c.")
-    #h_c = minimize_fn(fn, a, b, positive = True, search_all = False)
     h_c = iterative_minimize(fn, init = 0.005, step = 0.01, max = 10, print_proc=True)
-    #h_c = 0.208
-    '''
-    res = scipy.optimize.minimize(fn, x0=[0.1], bounds=[(0, 10)])
-    h_c = res.x[0]
-    print("h_c calculation finished")
-    print("       success : {}".format(res.success))
-    print("      iteraion : {}".format(res.nit))
-    print("function value : {}".format(res.fun))
-    #'''
-    print("           h_c : {}".format(h_c))
+    print("h_c : {}".format(h_c))
     
     h = h_c * h_opt * lam
-    
-    
-    #h = h_opt * lam
+
     return lambda x, y: fq(x, y, x_data_mirrored, y_data_mirrored, triweight, h)
 
 def h_cost_function(h_c, h_opt, lam, x_data, y_data):
@@ -307,57 +191,9 @@ def h_cost_function(h_c, h_opt, lam, x_data, y_data):
     
     return term_1 - term_2
 
-def M_0(h_c, h_opt, lam, x_data, y_data):
-    h = h_c * h_opt * lam
-    N = x_data.size
-
-    # calculating the first term
-    x_min = np.min(x_data - h)
-    x_max = np.max(x_data + h)
-    y_min = np.min(y_data - h)
-    y_max = np.max(y_data + h)
-    
-    x_res = 100
-    y_res = 100
-    x_grid = np.linspace(x_min, x_max, x_res)
-    y_grid = np.linspace(y_min, y_max, y_res)
-    X, Y = np.meshgrid(x_grid, y_grid)
-    f_squared = fq(X, Y, x_data, y_data, triweight, h)**2
-    term_1 = np.trapz(np.trapz(f_squared, x = y_grid, axis = -1), x = x_grid)
-
-    term_2 = 0
-    idx = np.arange(N)
-    for i in range(N):
-        term_2 += fq(x_data[i], y_data[i], x_data[idx!=i], y_data[idx!=i], triweight, h[idx!=i])
-    term_2 = 2/N * term_2 
-
-    return term_1 - term_2
-
 def triweight(x, y):
     t = np.sqrt(x**2 + y**2)
     return 4/np.pi * ((1-t**2)**3) * (t < 1)
-
-def gauss2d(x, y, std):
-    '''
-    2D Gaussian function.
-    
-    Inputs
-    ---------------------------------
-    x:    float, x-axis value of the point
-    y:    float, y-axis value of the point
-    std:  float or array-like, standard deviation of the Gaussian function. If std is given as array-like, then the first element and second element are used as the standard deviation of the x-axis and y-axis, respectively.
-    
-    Outputs
-    ---------------------------------
-    Function value at given point x, y.
-    '''
-    try:
-        xstd, ystd = std
-    except:
-        xstd = std
-        ystd = std
-    
-    return np.exp(-((x/xstd)**2 + (y/ystd)**2))
 
 def fq(x, y, x_data, y_data, K, h):
     '''
@@ -384,17 +220,6 @@ def fq(x, y, x_data, y_data, K, h):
     y_pairs = np.subtract.outer(y, y_data)
     
     return np.sum(K(x_pairs/h, y_pairs/h)/(h**2), axis=-1) / N
-    
-    if np.size(h) == 1:
-        s = np.sum(K(x_pairs, y_pairs, h)/(h**2), axis=-1)
-    #elif len(h) > 2:
-    #    s = np.sum(K(x_pairs, y_pairs, h)/(h[np.newaxis, np.newaxis:]**2), axis=-1)
-    elif len(h) == 2:
-        s = np.sum(K(x_pairs, y_pairs, h)/(h[0]**2 + h[1]**2), axis=-1)
-    else:
-        s = np.sum(K(x_pairs, y_pairs, h)/(h**2), axis=-1)
-        
-    return s/N
 
 def coor2idx(x, xmin, xmax, nstep):       # nstep: number of steps
     '''
@@ -431,8 +256,6 @@ def S(kappa, r, v, r_grid, v_grid, den, r200, vvar):
     v_max = v_grid.max()
     v_res = v_grid.size
     
-    r200_idx = coor2idx(r200, r_min, r_max, r_res)          # index of r200 in r_grid
-    
     
     # phi is calculated by integrating f_q within the caustic lines.
     phi = np.empty(r_res)
@@ -444,7 +267,6 @@ def S(kappa, r, v, r_grid, v_grid, den, r200, vvar):
 
     v_esc_mean_squared = np.trapz((A[r_grid < r200]**2) * phi[r_grid < r200], x = r_grid[r_grid < r200]) / np.trapz(phi[r_grid < r200], x = r_grid[r_grid < r200])
     
-    #v_mean_squared = astropy.stats.biweight_midvariance(v)
     v_mean_squared = vvar              # In Diaferio 1999 and Serra et al. 2011, the mean of the squared velocity is independent of kappa.
     return (v_esc_mean_squared - 4*v_mean_squared)**2
     
@@ -458,9 +280,6 @@ def calculate_A(kappa, den, r_grid, v_grid):
     for contour in contours:
         r_cont = contour[:,1]
         v_cont = contour[:,0]
-        
-        #if (v_cont.max()*v_step + v_grid.min() < 0) or (v_cont.min()*v_step + v_grid.min() > 0):
-        #    continue
 
         if not (r_cont[0] == r_cont[-1] and v_cont[0] == v_cont[-1]):   # consider only non-looping contours
             int_idx = (r_cont == r_cont.astype(int))
@@ -488,13 +307,11 @@ def minimize_fn(fn, a, b, positive = False, it = 0, search_all = False):
     
     if (it == 1) & (search_all):
         search_range = np.logspace(np.log10(a + abs(b-a)*1e-6), np.log10(b), 100)
-        #search_range = np.linspace(a, b, 100)
         min_idx = 0
         min_val = fn(search_range[0])
         for i in range(search_range.size):
             x = search_range[i]
             val = fn(x)
-            #print("{} : {}".format(i, val))
             if val < min_val:
                 min_idx = i
                 min_val = val
@@ -621,10 +438,6 @@ def grad_restrict(A, r, grad_limit = 2, new_grad = 0.25):
             log_grad = (np.log(A[i+1])-np.log(A[i])) / (np.log(r[i+1]) - np.log(r[i]))
             if log_grad > grad_limit:
                 A[i+1] = np.exp( np.log(A[i]) + new_grad*(np.log(r[i+1]) - np.log(r[i])) )
-
-            #elif log_grad < -grad_limit:
-            #    A[i+1] = np.exp( np.log(A[i]) - grad_limit*(np.log(r[i+1]) - np.log(r[i])) )
-            
             
     return A
 
