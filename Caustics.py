@@ -80,6 +80,9 @@ def Caustics(fpath, v_lower, v_upper, r_max, H0 = 100, Om0 = 0.3, Ode0 = 0.7, Tc
     vvar = np.var(v[cand_mem_idx], ddof=1)      # variance of v calculated from candidate members; later to be used for function S(k)
     R = np.average(r[cand_mem_idx])             # average projected distance from the center of the cluster to candidate member galaxies; later to be used for function S(k)
     
+    print("Velocity Dispersion : {} km/s".format(np.sqrt(vvar)))
+    print("Mean distance       : {} Mpc".format(R))
+
     print("Data unpacked.")
     print("")
     
