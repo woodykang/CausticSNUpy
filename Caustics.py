@@ -214,7 +214,7 @@ def h_cost_function(h_c, h_opt, lam, x_data, y_data):
     y_min = np.min(y_data - h)      # minimum value in the y_grid
     y_max = np.max(y_data + h)      # maximum value in the y_grid
     
-    x_res = 100                     # resolution of x_grid
+    x_res = 200                     # resolution of x_grid
     y_res = 100                     # resolution of y_grid
 
     x_grid = np.linspace(x_min, x_max, x_res)   # grid along rescaled r-axis (x-axis) used for numerical integration
@@ -224,7 +224,7 @@ def h_cost_function(h_c, h_opt, lam, x_data, y_data):
     
     f_squared = fq(X, Y, x_data, y_data, triweight, h)**2           # squared value of fq
 
-    term_1 = np.trapz(np.trapz(f_squared, dx = y_grid[1] - y_grid[0], axis = -1), dx = x_grid[1] - x_grid[0])       # first term of M_0 is the integration of fq squared
+    term_1 = np.trapz(np.trapz(f_squared, x = x_grid, axis = -1), x = y_grid)       # first term of M_0 is the integration of fq squared
     
     # calculating the second term (refer to eq. 3.37 and Section 5.3.4 of Silverman B. W., 1986, Density Estimation for Statistics and Data Analysis, Chapman & Hall, London)
     x_pairs = np.subtract.outer(x_data, x_data)             # 2D array of size (N, N); element (i, j) is x_data[i]-x_data[j] i.e. pair-wise subtraction of x_data and x_data
