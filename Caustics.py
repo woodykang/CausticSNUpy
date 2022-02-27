@@ -89,7 +89,14 @@ def Caustics(fpath, v_lower, v_upper, r_max, H0 = 100, Om0 = 0.3, Ode0 = 0.7, Tc
     x_data = r*H0                               # rescaled data points in r-axis (in units of km/s)
     y_data = v/q                                # rescaled data points in v-axis (in units of km/s)
     
-    f = Diaferio_density(x_data, y_data)        # number density on redshift diagram
+    r_min = 0                                   # minimum of r should be, obviously, 0
+    r_grid = np.linspace(r_min, r_max, r_res)   # grid of r-axis on the redshift diagram
+    v_grid = np.linspace(v_min, v_max, v_res)   # grid of v-axis on the redshift diagram
+
+    x_grid = r_grid*H0                          # grid of rescaled r-axis (in units of km/s)
+    y_grid = v_grid/q                           # grid of rescaled v-axis (in units of km/s)
+
+    f = Diaferio_density(x_data, y_data, x_grid, y_grid)        # number density on redshift diagram
     
     print("Number density estimation done.")
     print("")
@@ -97,10 +104,10 @@ def Caustics(fpath, v_lower, v_upper, r_max, H0 = 100, Om0 = 0.3, Ode0 = 0.7, Tc
     r_min = 0                                   # minimum of r should be, obviously, 0
     r_grid = np.linspace(r_min, r_max, r_res)   # grid of r-axis on the redshift diagram
     v_grid = np.linspace(v_min, v_max, v_res)   # grid of v-axis on the redshift diagram
-    
+
     x_grid = r_grid*H0                          # grid of rescaled r-axis (in units of km/s)
     y_grid = v_grid/q                           # grid of rescaled v-axis (in units of km/s)
-    
+
     X, Y = np.meshgrid(x_grid, y_grid)          # mesh grid
     den = f(X, Y)                               # number density estimated at each point X, Y
 
@@ -146,7 +153,7 @@ def Caustics(fpath, v_lower, v_upper, r_max, H0 = 100, Om0 = 0.3, Ode0 = 0.7, Tc
 
     return r_grid, v_grid, A, den, r, v, member
 
-def Diaferio_density(x_data, y_data):
+def Diaferio_density(x_data, y_data, x_grid, y_grid):
     
     '''
     Description
@@ -173,7 +180,7 @@ def Diaferio_density(x_data, y_data):
     gamma = 10**(np.sum(np.log10(fq(x_data_mirrored, y_data_mirrored, x_data_mirrored, y_data_mirrored, triweight, h_opt)))/(2*N))      # gamma  defined in Diaferio 1999, between eq. 17 and eq. 18; here, the term is divided by 2*N because N is the number of original (i.e. un-mirrored) data points
     lam = (gamma/fq(x_data_mirrored, y_data_mirrored, x_data_mirrored, y_data_mirrored, triweight, h_opt))**0.5                         # lambda defined in Diaferio 1999, between eq. 17 and eq. 18
 
-    fn = lambda h_c: h_cost_function(h_c, h_opt, lam, x_data_mirrored, y_data_mirrored)                                                 # M_0 function defined in eq. 18 from Diaferio 1999
+    fn = lambda h_c: h_cost_function(h_c, h_opt, lam, x_data_mirrored, y_data_mirrored, x_grid, y_grid)                                                 # M_0 function defined in eq. 18 from Diaferio 1999
 
     print("Calculating h_c.")
     h_c = iterative_minimize(fn, init = 0.005, step = 0.01, max = 10, print_proc=True)                                                  # imiated the minimization method used in CausticApp v1.6
@@ -183,7 +190,7 @@ def Diaferio_density(x_data, y_data):
 
     return lambda x, y: fq(x, y, x_data_mirrored, y_data_mirrored, triweight, h)                                                        # return value: function that returns the number density on redshift diagram at given point (x, y). 
 
-def h_cost_function(h_c, h_opt, lam, x_data, y_data):
+def h_cost_function(h_c, h_opt, lam, x_data, y_data, x_grid, y_grid):
     
     '''
     Description
@@ -209,6 +216,40 @@ def h_cost_function(h_c, h_opt, lam, x_data, y_data):
     # calculating the first term
     ## set up grids for numerical integration; x_grid and y_grid here is different from those used in the main function Caustics().
     ## Note that the value of triweight funtion is 0 outside (x/h)**1 + (y/h)**1 = 1
+    x_min = 0 #np.min(x_data - h)      # minimum value in the x_grid
+    x_max = np.max(x_data + h)      # maximum value in the x_grid
+    y_min = np.min(y_data - h)      # minimum value in the y_grid
+    y_max = np.max(y_data + h)      # maximum value in the y_grid
+    
+    x_res = 100                     # resolution of x_grid
+    y_res = 100                     # resolution of y_grid
+
+    x_grid = np.linspace(x_min, x_max, x_res)   # grid along rescaled r-axis (x-axis) used for numerical integration
+    y_grid = np.linspace(y_min, y_max, y_res)   # grid along rescaled v-axis (y-axis) used for numerical integration
+
+    X, Y = np.meshgrid(x_grid, y_grid)          # mesh grid
+    
+    f_squared = fq(X, Y, x_data, y_data, triweight, h)**2           # squared value of fq
+
+    term_1 = np.trapz(np.trapz(f_squared, x = y_grid, axis = 0), x = x_grid)       # first term of M_0 is the integration of fq squared
+    
+    # calculating the second term (refer to eq. 3.37 and Section 5.3.4 of Silverman B. W., 1986, Density Estimation for Statistics and Data Analysis, Chapman & Hall, London)
+    x_pairs = np.subtract.outer(x_data, x_data)             # 2D array of size (N, N); element (i, j) is x_data[i]-x_data[j] i.e. pair-wise subtraction of x_data and x_data
+    y_pairs = np.subtract.outer(y_data, y_data)             # 2D array of size (N, N); element (i, j) is y_data[i]-y_data[j] i.e. pair-wise subtraction of y_data and y_data
+    a = np.sum(triweight(x_pairs/h, y_pairs/h) / (h**2))    # sum of fq evaluated at all data points (x, y)
+    b = triweight(0, 0) * np.sum(1/(h**2))
+    term_2 = 2/(N*(N - 1)) * (a - b)
+
+    return term_1 - term_2
+
+
+def M_0(h_c, h_opt, lam, x_data, y_data):
+    h = h_c * h_opt * lam       # local smoothing length
+    N = x_data.size             # number of data points
+
+    # calculating the first term
+    ## set up grids for numerical integration; x_grid and y_grid here is different from those used in the main function Caustics().
+    ## Note that the value of triweight funtion is 0 outside (x/h)**1 + (y/h)**1 = 1
     x_min = np.min(x_data - h)      # minimum value in the x_grid
     x_max = np.max(x_data + h)      # maximum value in the x_grid
     y_min = np.min(y_data - h)      # minimum value in the y_grid
@@ -224,14 +265,9 @@ def h_cost_function(h_c, h_opt, lam, x_data, y_data):
     
     f_squared = fq(X, Y, x_data, y_data, triweight, h)**2           # squared value of fq
 
-    term_1 = np.trapz(np.trapz(f_squared, x = x_grid, axis = -1), x = y_grid)       # first term of M_0 is the integration of fq squared
-    
-    # calculating the second term (refer to eq. 3.37 and Section 5.3.4 of Silverman B. W., 1986, Density Estimation for Statistics and Data Analysis, Chapman & Hall, London)
-    x_pairs = np.subtract.outer(x_data, x_data)             # 2D array of size (N, N); element (i, j) is x_data[i]-x_data[j] i.e. pair-wise subtraction of x_data and x_data
-    y_pairs = np.subtract.outer(y_data, y_data)             # 2D array of size (N, N); element (i, j) is y_data[i]-y_data[j] i.e. pair-wise subtraction of y_data and y_data
-    a = np.sum(triweight(x_pairs/h, y_pairs/h) / (h**2))    # sum of fq evaluated at all data points (x, y)
-    b = triweight(0, 0) * np.sum(1/(h**2))
-    term_2 = 2/(N*(N - 1)) * (a - b)
+    term_1 = np.trapz(np.trapz(f_squared, x = y_grid, axis = 0), x = x_grid)       # first term of M_0 is the integration of fq squared
+
+    term_2 = 2/(N*(N-1)) * np.sum([[triweight((x_data[i] - x_data[j])/h[j], (y_data[i] - y_data[j])/h[j]) / (h[j]**2) for j in list(range(N))[:i] + list(range(N))[i+1:]] for i in range(N)])
 
     return term_1 - term_2
 
@@ -279,7 +315,7 @@ def fq(x, y, x_data, y_data, K, h):
     x_pairs = np.subtract.outer(x, x_data)      # 2D array of size (M, N) where M is the length of x; element (i, j) is x[i]-x_data[j] i.e. pair-wise subtraction of x and x_data
     y_pairs = np.subtract.outer(y, y_data)      # 2D array of size (M, N) where M is the length of y; element (i, j) is y[i]-y_data[j] i.e. pair-wise subtraction of y and y_data
     
-    return np.sum(K(x_pairs/h, y_pairs/h)/(h**2), axis=-1) / N
+    return np.sum(K(x_pairs/h, y_pairs/h)/(h**2), axis = -1) / N
 
 def S(kappa, r, v, r_grid, v_grid, den, R, vvar):
     A = calculate_A(kappa, den, r_grid, v_grid)
@@ -304,7 +340,7 @@ def S(kappa, r, v, r_grid, v_grid, den, R, vvar):
     v_esc_mean_squared = np.trapz((A[r_grid < R]**2) * phi[r_grid < R], x = r_grid[r_grid < R]) / np.trapz(phi[r_grid < R], x = r_grid[r_grid < R])
     
     v_mean_squared = vvar              # In Diaferio 1999 and Serra et al. 2011, the mean of the squared velocity is independent of kappa.
-    return (v_esc_mean_squared - 4*v_mean_squared)**2
+    return abs(v_esc_mean_squared - 4*v_mean_squared)
     
 
 
