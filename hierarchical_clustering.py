@@ -161,11 +161,11 @@ def ADcut(mainbranch, count_leaf, N, Z, sigma, sig_pl, f=0.1):
             
 
 def ALScut(sigma, sig_pl):
-    N03 = (np.abs(sig_pl - sigma)/sig_pl < 0.3).size                # N_0.3 described in Section 4.2 of Serra et al. 2011.
+    N03 = np.sum(np.abs(sig_pl - sigma)/sig_pl < 0.3)                # N_0.3 described in Section 4.2 of Serra et al. 2011.
 
     delta = 0.03                                                    # delta ranges from 0.03 to 0.1
     while (delta < 0.1):
-        N_del = (np.abs(sig_pl - sigma)/sig_pl < delta).size
+        N_del = np.sum(np.abs(sig_pl - sigma)/sig_pl < delta)
         if N_del >= 0.8*N03:
             break
         

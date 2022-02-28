@@ -79,7 +79,10 @@ def Caustics(fpath, v_lower, v_upper, r_max, H0 = 100, Om0 = 0.3, Ode0 = 0.7, Tc
 
     vvar = np.var(v[cand_mem_idx], ddof=1)      # variance of v calculated from candidate members; later to be used for function S(k)
     R = np.average(r[cand_mem_idx])             # average projected distance from the center of the cluster to candidate member galaxies; later to be used for function S(k)
-    
+    #vvar = 606.156616**2
+    #R = 0.950363
+
+
     print("Velocity Dispersion : {} km/s".format(np.sqrt(vvar)))
     print("Mean distance       : {} Mpc".format(R))
 
@@ -219,16 +222,16 @@ def h_cost_function(h_c, h_opt, lam, x_data, y_data, x_grid, y_grid):
     # calculating the first term
     ## set up grids for numerical integration; x_grid and y_grid here is different from those used in the main function Caustics().
     ## Note that the value of triweight funtion is 0 outside (x/h)**1 + (y/h)**1 = 1
-    x_min = 0 #np.min(x_data - h)      # minimum value in the x_grid
-    x_max = np.max(x_data + h)      # maximum value in the x_grid
-    y_min = np.min(y_data - h)      # minimum value in the y_grid
-    y_max = np.max(y_data + h)      # maximum value in the y_grid
+    #x_min = 0 #np.min(x_data - h)      # minimum value in the x_grid
+    #x_max = np.max(x_data + h)      # maximum value in the x_grid
+    #y_min = np.min(y_data - h)      # minimum value in the y_grid
+    #y_max = np.max(y_data + h)      # maximum value in the y_grid
     
-    x_res = 100                     # resolution of x_grid
-    y_res = 100                     # resolution of y_grid
+    #x_res = 100                     # resolution of x_grid
+    #y_res = 100                     # resolution of y_grid
 
-    x_grid = np.linspace(x_min, x_max, x_res)   # grid along rescaled r-axis (x-axis) used for numerical integration
-    y_grid = np.linspace(y_min, y_max, y_res)   # grid along rescaled v-axis (y-axis) used for numerical integration
+    #x_grid = np.linspace(x_min, x_max, x_res)   # grid along rescaled r-axis (x-axis) used for numerical integration
+    #y_grid = np.linspace(y_min, y_max, y_res)   # grid along rescaled v-axis (y-axis) used for numerical integration
 
     X, Y = np.meshgrid(x_grid, y_grid)          # mesh grid
     
