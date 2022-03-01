@@ -27,7 +27,7 @@ def hier_clustering(gal_ra, gal_dec, gal_v, threshold="AD"):
     # constants
     m = 1e12  * 2e30                        # mass of a single galaxy [kg] (1 solar mass = 2e30 kg)
     G = 6.67e-11                            # gravitational constant  [N m^2 kg^-2]
-    c = 299792458                           # speed of light          [km/s]
+    c = 299792.458                           # speed of light          [km/s]
     H0 = 100                                 # Hubble constant         [km/s/Mpc]
     Mpc = 3.086e22                          # conversion factor from Mpc to meter
     km = 1000                               # conversion factor from km to meter
@@ -120,7 +120,7 @@ def hier_clustering(gal_ra, gal_dec, gal_v, threshold="AD"):
 
     sigma = np.zeros(mainbranch.size)               # velocity dispersion at each level of the main branch.
     for i, node in enumerate(mainbranch):
-        sigma[i] = np.std(gal_v[leaves[node-N]], ddof=1)
+        sigma[i] = np.std(gal_v[leaves[node-N]])
 
 
     hist, bins = np.histogram(sigma, bins='auto')                   # apply bins to get the mode
@@ -132,6 +132,22 @@ def hier_clustering(gal_ra, gal_dec, gal_v, threshold="AD"):
     elif threshold == "ALS":
         cut_idx = ALScut(sigma, sig_pl)
     
+    plt.plot(mainbranch, sigma, c = 'olive', marker = "o", markerfacecolor = 'none')
+    plt.axhline(sig_pl, linestyle='dashed', c="gray")
+    plt.plot(mainbranch[cut_idx], sigma[cut_idx], c = "purple", marker = "o")
+
+    plt.title("$\sigma$ Plateau")
+    plt.xlabel("Main Branch Nodes")
+    plt.ylabel("Velocity Dispersion (km/s)")
+
+    #plt.xlim(800, 1000)
+    #plt.ylim(550, 650)
+
+    plt.gca().invert_xaxis()
+    #plt.savefig("20220210 Sigma Plateau.png")
+    plt.show()
+    print(sigma[cut_idx])
+
     cand_mem_idx = leaves[mainbranch[cut_idx]-N]
 
     cand_mem = np.zeros(N)
@@ -173,7 +189,7 @@ def ALScut(sigma, sig_pl):
         
         else:
             delta += 0.01
-            
+
     if np.where(np.abs(sig_pl - sigma)/sig_pl < delta)[0].size < 5:
         cut_idx = 0
     else:
