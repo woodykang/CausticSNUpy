@@ -77,7 +77,7 @@ def Caustics(fpath, v_lower, v_upper, r_max, H0 = 100, Om0 = 0.3, Ode0 = 0.7, Tc
 
     print("Number of candidate members : {}".format(len(cand_mem_idx)))
 
-    vvar = np.var(v[cand_mem_idx], ddof=1)      # variance of v calculated from candidate members; later to be used for function S(k)
+    vvar = np.var(gal_v[cand_mem_idx], ddof=1)      # variance of v calculated from candidate members; later to be used for function S(k)
     R = np.average(r[cand_mem_idx])             # average projected distance from the center of the cluster to candidate member galaxies; later to be used for function S(k)
     #vvar = 606.156616**2
     #R = 0.950363
@@ -359,13 +359,13 @@ def calculate_A(kappa, den, r_grid, v_grid):
         r_cont = contour[:,1]
         v_cont = contour[:,0]
 
-        if not (r_cont[0] == r_cont[-1] and v_cont[0] == v_cont[-1]):   # consider only non-looping contours
-            int_idx = (r_cont == r_cont.astype(int))
-            r_cont_grid = r_cont[int_idx].astype(int)
-            v_cont_grid = v_cont[int_idx]
-            for r, v in zip(r_cont_grid, v_cont_grid):
-                v = v*v_step + v_grid.min()
-                A[r] = min(A[r], abs(v))
+        #if not (r_cont[0] == r_cont[-1] and v_cont[0] == v_cont[-1]):   # consider only non-looping contours
+        int_idx = (r_cont == r_cont.astype(int))
+        r_cont_grid = r_cont[int_idx].astype(int)
+        v_cont_grid = v_cont[int_idx]
+        for r, v in zip(r_cont_grid, v_cont_grid):
+            v = v*v_step + v_grid.min()
+            A[r] = min(A[r], abs(v))
 
     A[np.isinf(A)] = 0
     A = grad_restrict(A, r_grid)
