@@ -1,5 +1,7 @@
 import numpy as np
+from pandas import cut
 import scipy.cluster
+import matplotlib.pyplot as plt
 
 # This function constructs a binary tree from galaxies using hierarchical clustering,
 # and then determines candidate members of a galaxy cluser.
@@ -118,7 +120,7 @@ def hier_clustering(gal_ra, gal_dec, gal_v, threshold="AD"):
 
     sigma = np.zeros(mainbranch.size)               # velocity dispersion at each level of the main branch.
     for i, node in enumerate(mainbranch):
-        sigma[i] = np.std(gal_v[leaves[node-N]])
+        sigma[i] = np.std(gal_v[leaves[node-N]], ddof=1)
 
 
     hist, bins = np.histogram(sigma, bins='auto')                   # apply bins to get the mode
@@ -164,23 +166,19 @@ def ALScut(sigma, sig_pl):
     N03 = np.sum(np.abs(sig_pl - sigma)/sig_pl < 0.3)                # N_0.3 described in Section 4.2 of Serra et al. 2011.
 
     delta = 0.03                                                    # delta ranges from 0.03 to 0.1
-    while (delta < 0.1):
+    while (delta < 0.3):
         N_del = np.sum(np.abs(sig_pl - sigma)/sig_pl < delta)
         if N_del >= 0.8*N03:
             break
         
         else:
             delta += 0.01
-
-    if delta == 0.1:                # no plateau is detected
+            
+    if np.where(np.abs(sig_pl - sigma)/sig_pl < delta)[0].size < 5:
         cut_idx = 0
-
     else:
-        if np.where(np.abs(sig_pl - sigma)/sig_pl < delta)[0].size < 5:
-            cut_idx = 0
-        else:
-            cand_cut_idx = np.where(np.abs(sig_pl - sigma)/sig_pl < delta)[0][0:5]
-            cut_idx = cand_cut_idx[np.argmin(np.abs(sig_pl - sigma[cand_cut_idx]))]
+        cand_cut_idx = np.where(np.abs(sig_pl - sigma)/sig_pl < delta)[0][0:5]
+        cut_idx = cand_cut_idx[np.argmin(np.abs(sig_pl - sigma[cand_cut_idx]))]
 
         
     return cut_idx
