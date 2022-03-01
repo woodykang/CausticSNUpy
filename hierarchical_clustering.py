@@ -131,22 +131,6 @@ def hier_clustering(gal_ra, gal_dec, gal_v, threshold="AD"):
         cut_idx = ADcut(mainbranch, count_leaf, N, Z, sigma, sig_pl)
     elif threshold == "ALS":
         cut_idx = ALScut(sigma, sig_pl)
-    
-    plt.plot(mainbranch, sigma, c = 'olive', marker = "o", markerfacecolor = 'none')
-    plt.axhline(sig_pl, linestyle='dashed', c="gray")
-    plt.plot(mainbranch[cut_idx], sigma[cut_idx], c = "purple", marker = "o")
-
-    plt.title("$\sigma$ Plateau")
-    plt.xlabel("Main Branch Nodes")
-    plt.ylabel("Velocity Dispersion (km/s)")
-
-    #plt.xlim(800, 1000)
-    #plt.ylim(550, 650)
-
-    plt.gca().invert_xaxis()
-    #plt.savefig("20220210 Sigma Plateau.png")
-    plt.show()
-    print(sigma[cut_idx])
 
     cand_mem_idx = leaves[mainbranch[cut_idx]-N]
 
