@@ -79,9 +79,6 @@ def Caustics(fpath, v_lower, v_upper, r_max, H0 = 100, Om0 = 0.3, Ode0 = 0.7, Tc
 
     vvar = np.var(v[cand_mem_idx], ddof=1)      # variance of v calculated from candidate members; later to be used for function S(k)
     R = np.average(r[cand_mem_idx])             # average projected distance from the center of the cluster to candidate member galaxies; later to be used for function S(k)
-    #vvar = 606.156616**2
-    #R = 0.950363
-
 
     print("Velocity Dispersion : {} km/s".format(np.sqrt(vvar)))
     print("Mean distance       : {} Mpc".format(R))
@@ -198,7 +195,8 @@ def Diaferio_density(x_data, y_data, x_grid, y_grid):
     fn = lambda h_c: h_cost_function(h_c, h_opt, lam, x_data_mirrored, y_data_mirrored, x_grid, y_grid)                                                 # M_0 function defined in eq. 18 from Diaferio 1999
 
     print("Calculating h_c.")
-    h_c = iterative_minimize(fn, init = 0.005, step = 0.01, max = 10, print_proc=True)                                                  # imiated the minimization method used in CausticApp v1.6
+    #h_c = iterative_minimize(fn, init = 0.005, step = 0.01, max = 10, print_proc=True)                                                  # imiated the minimization method used in CausticApp v1.6
+    h_c = minimize_fn(fn, 0.005, 2, positive=True)
     print("h_c : {}".format(h_c))
     
     h = h_c * h_opt * lam                                                                                                               # final h_i (local smoothing length); size of h_i is same as x_data and y_data
@@ -231,16 +229,16 @@ def h_cost_function(h_c, h_opt, lam, x_data, y_data, x_grid, y_grid):
     # calculating the first term
     ## set up grids for numerical integration; x_grid and y_grid here is different from those used in the main function Caustics().
     ## Note that the value of triweight funtion is 0 outside (x/h)**1 + (y/h)**1 = 1
-    #x_min = 0 #np.min(x_data - h)      # minimum value in the x_grid
-    #x_max = np.max(x_data + h)      # maximum value in the x_grid
-    #y_min = np.min(y_data - h)      # minimum value in the y_grid
-    #y_max = np.max(y_data + h)      # maximum value in the y_grid
+    x_min = 0 #np.min(x_data - h)      # minimum value in the x_grid
+    x_max = np.max(x_data + h)      # maximum value in the x_grid
+    y_min = np.min(y_data - h)      # minimum value in the y_grid
+    y_max = np.max(y_data + h)      # maximum value in the y_grid
     
-    #x_res = 100                     # resolution of x_grid
-    #y_res = 100                     # resolution of y_grid
+    x_res = 50                     # resolution of x_grid
+    y_res = 50                     # resolution of y_grid
 
-    #x_grid = np.linspace(x_min, x_max, x_res)   # grid along rescaled r-axis (x-axis) used for numerical integration
-    #y_grid = np.linspace(y_min, y_max, y_res)   # grid along rescaled v-axis (y-axis) used for numerical integration
+    x_grid = np.linspace(x_min, x_max, x_res)   # grid along rescaled r-axis (x-axis) used for numerical integration
+    y_grid = np.linspace(y_min, y_max, y_res)   # grid along rescaled v-axis (y-axis) used for numerical integration
 
     X, Y = np.meshgrid(x_grid, y_grid)          # mesh grid
     
@@ -392,7 +390,7 @@ def calculate_A(kappa, den, r_grid, v_grid):
 
     if zero_idx != None:
         A[zero_idx:] = 0
-    A[np.isinf(A)] = 0
+    #A[np.isinf(A)]
     A = grad_restrict(A, r_grid)
     
     return A
