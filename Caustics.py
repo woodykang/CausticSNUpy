@@ -77,7 +77,7 @@ def Caustics(fpath, v_lower, v_upper, r_max, H0 = 100, Om0 = 0.3, Ode0 = 0.7, Tc
 
     print("Number of candidate members : {}".format(len(cand_mem_idx)))
 
-    vvar = np.var(gal_v[cand_mem_idx], ddof=1)      # variance of v calculated from candidate members; later to be used for function S(k)
+    vvar = np.var(v[cand_mem_idx], ddof=1)      # variance of v calculated from candidate members; later to be used for function S(k)
     R = np.average(r[cand_mem_idx])             # average projected distance from the center of the cluster to candidate member galaxies; later to be used for function S(k)
     #vvar = 606.156616**2
     #R = 0.950363
@@ -132,7 +132,7 @@ def Caustics(fpath, v_lower, v_upper, r_max, H0 = 100, Om0 = 0.3, Ode0 = 0.7, Tc
     print("Drawing caustic lines.")
     A = calculate_A(kappa, den, r_grid, v_grid)                                 # amplitude of the caustic lines drawn from den at level kappa
     
-
+    '''
     # plot results
     plt.plot(r, v, ".", c = "y", alpha = 0.5)
 
@@ -143,6 +143,7 @@ def Caustics(fpath, v_lower, v_upper, r_max, H0 = 100, Om0 = 0.3, Ode0 = 0.7, Tc
 
     plt.plot(r_grid,  A, color = "orange", label = "caustic")
     plt.plot(r_grid, -A, color = "orange")
+    plt.plot(r_grid, A, "o", color = 'orange')
 
     plt.xlim(r_min, 3)
     plt.ylim(-2000, 2000)
@@ -151,9 +152,17 @@ def Caustics(fpath, v_lower, v_upper, r_max, H0 = 100, Om0 = 0.3, Ode0 = 0.7, Tc
     plt.xlabel("Projected Distance (Mpc/h)")
     plt.ylabel("$(v_{gal}-v_{cl})/(1+z)$ (km/s)")
 
+
+    contours = skimage.measure.find_contours(den, kappa)
+    for contour in contours:
+        r_cont = contour[:,1]
+        v_cont = contour[:,0]
+        int_idx = (r_cont == r_cont.astype(int))
+        plt.plot(r_grid[r_cont[int_idx].astype(int)], v_grid[v_cont[int_idx].astype(int)], c = 'green')
+        #plt.plot(contour[:,1]*(r_grid[1]-r_grid[0]), contour[:,0]*(v_grid[1]-v_grid[0]) + v_grid.min(), c = 'green')
     plt.show()
     # end of plot results
-
+    '''
     # determine membership
     member = membership(r, v, r_grid, A)    # array of 0 and 1; 0 for interlopers and 1 for members
 
@@ -354,19 +363,35 @@ def calculate_A(kappa, den, r_grid, v_grid):
     contours = skimage.measure.find_contours(den, kappa)
     r_step = r_grid[1] - r_grid[0]
     v_step = v_grid[1] - v_grid[0]
+
     A = np.full(r_grid.size, np.inf)
+    zero_idx = None
     for contour in contours:
         r_cont = contour[:,1]
         v_cont = contour[:,0]
 
-        #if not (r_cont[0] == r_cont[-1] and v_cont[0] == v_cont[-1]):   # consider only non-looping contours
+        check_sign = False
+        negative = False
+        if not (r_cont[0] == r_cont[-1] and v_cont[0] == v_cont[-1]):
+            check_sign = True
+
+        if v_cont[0]*v_step + v_grid.min() < 0:
+            negative = True
+        else:
+            negative = False
+        
         int_idx = (r_cont == r_cont.astype(int))
         r_cont_grid = r_cont[int_idx].astype(int)
         v_cont_grid = v_cont[int_idx]
         for r, v in zip(r_cont_grid, v_cont_grid):
             v = v*v_step + v_grid.min()
+            if check_sign and negative and (v >= 0):
+                zero_idx = r+1
+                negative = False
             A[r] = min(A[r], abs(v))
 
+    if zero_idx != None:
+        A[zero_idx:] = 0
     A[np.isinf(A)] = 0
     A = grad_restrict(A, r_grid)
     
