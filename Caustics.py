@@ -8,7 +8,7 @@ import astropy.stats
 from hierarchical_clustering import hier_clustering
 
 
-def Caustics(fpath, v_lower, v_upper, r_max, H0 = 100, Om0 = 0.3, Ode0 = 0.7, Tcmb0 = 2.7, q = 25, r_res = 100, v_res = 100, BT_thr = "ALS"):
+def Caustics(fpath, v_lower, v_upper, r_max, center_given = False, H0 = 100, Om0 = 0.3, Ode0 = 0.7, Tcmb0 = 2.7, q = 25, r_res = 100, v_res = 100, BT_thr = "ALS"):
     
     '''
     Inputs
@@ -42,12 +42,26 @@ def Caustics(fpath, v_lower, v_upper, r_max, H0 = 100, Om0 = 0.3, Ode0 = 0.7, Tc
     
     # unpack data
     print("Unpacking data.")
+    gal_ra, gal_dec, gal_v = np.loadtxt(fpath, skiprows=1, unpack=True)     # RA (deg), Dec (deg), l.o.s velocity (km/s)
     cluster_data = np.loadtxt(fpath, max_rows = 1)  # In the first row, the format is N, cl_ra, cl_dec, cl_v
                                                     # where N is number of galaxies observed, and
                                                     # cl_ra, cl_dec, cl_z are RA (deg), DEC (deg), los velocity (km/s) of the cluster
-    cl_ra, cl_dec, cl_v = cluster_data[1:]
-    gal_ra, gal_dec, gal_v = np.loadtxt(fpath, skiprows=1, unpack=True)     # RA (deg), Dec (deg), l.o.s velocity (km/s)
     
+    # apply velocity cutoff
+    vel_cutoff_idx = (gal_v > v_lower) & (gal_v < v_upper)
+    gal_ra = gal_ra[vel_cutoff_idx]
+    gal_dec = gal_dec[vel_cutoff_idx]
+    gal_v = gal_v[vel_cutoff_idx]
+
+    # shortlist candidate members using hierarchical clustering
+    cand_mem_idx = hier_clustering(gal_ra, gal_dec, gal_v, threshold=BT_thr)            # indices of candidate members
+
+    print("Number of candidate members : {}".format(len(cand_mem_idx)))
+
+    if not center_given:
+        cl_ra, cl_dec, cl_v = find_cluster_center(gal_ra, gal_dec, gal_v, cand_mem_idx)
+    else:
+        cl_ra, cl_dec, cl_v = cluster_data[1:]
     
     # calculate projected distance and radial velocity
     LCDM = astropy.cosmology.LambdaCDM(H0, Om0, Ode0, Tcmb0)    #Lambda CDM model with the given parameters
@@ -59,29 +73,24 @@ def Caustics(fpath, v_lower, v_upper, r_max, H0 = 100, Om0 = 0.3, Ode0 = 0.7, Tc
     r = (angle*d_A).to(u.Mpc, equivalencies = u.dimensionless_angles()).value                                                   # projected distance from cluster center to each galaxy (in Mpc)
     v = (gal_v - cl_v)/(1+cl_z)                 # relative l.o.s velocity with regard to cluster center
 
-    # apply cutoffs given by input
-    cutoff_idx = (gal_v > v_lower) & (gal_v < v_upper) & (r < r_max)
-    gal_ra  = gal_ra[ cutoff_idx]
-    gal_dec = gal_dec[cutoff_idx]
-    gal_v   = gal_v[  cutoff_idx]
-    r = r[cutoff_idx]
-    v = v[cutoff_idx]
-    
-    v_min = v_lower - cl_v      # lower bound of v
-    v_max = v_upper - cl_v      # upper bound of v
-
-    print("Number of galaxies in vel and r_max limit : {}".format(r.size))
-
-    # shortlist candidate members using hierarchical clustering
-    cand_mem_idx = hier_clustering(gal_ra, gal_dec, gal_v, threshold=BT_thr)            # indices of candidate members
-
-    print("Number of candidate members : {}".format(len(cand_mem_idx)))
-
     vvar = np.var(v[cand_mem_idx], ddof=1)      # variance of v calculated from candidate members; later to be used for function S(k)
     R = np.average(r[cand_mem_idx])             # average projected distance from the center of the cluster to candidate member galaxies; later to be used for function S(k)
 
     print("Velocity Dispersion : {} km/s".format(np.sqrt(vvar)))
     print("Mean distance       : {} Mpc".format(R))
+
+    # apply projected distance cutoff
+    r_cutoff_idx = (r < r_max)
+    gal_ra  = gal_ra[ r_cutoff_idx]
+    gal_dec = gal_dec[r_cutoff_idx]
+    gal_v   = gal_v[  r_cutoff_idx]
+    r = r[r_cutoff_idx]
+    v = v[r_cutoff_idx]
+    
+    v_min = v_lower - cl_v      # lower bound of v
+    v_max = v_upper - cl_v      # upper bound of v
+
+    print("Number of galaxies in vel and r_max limit : {}".format(r.size))
 
     print("Data unpacked.")
     print("")
@@ -164,6 +173,45 @@ def Caustics(fpath, v_lower, v_upper, r_max, H0 = 100, Om0 = 0.3, Ode0 = 0.7, Tc
     member = membership(r, v, r_grid, A)    # array of 0 and 1; 0 for interlopers and 1 for members
 
     return r_grid, v_grid, A, den, r, v, member
+
+def find_cluster_center(gal_ra, gal_dec, gal_v, cand_mem_idx):
+    c = 299792.458
+    cand_gal_ra = gal_ra[cand_mem_idx]
+    cand_gal_dec = gal_dec[cand_mem_idx]
+    cand_gal_z = gal_v[cand_mem_idx]/c
+
+    cl_z = np.average(cand_gal_z)
+
+    D_A = astropy.cosmology.LambdaCDM(H0 = 100, Om0 = 0.3, Ode0 = 0.7, Tcmb0 = 2.7).angular_diameter_distance(cl_z).to(u.Mpc).value
+
+    N = cand_gal_ra.size
+    h_c = 0.15*D_A/320 * 180/np.pi
+    h_opt = 6.24/(N**(1/6)) * np.sqrt((np.std(cand_gal_ra, ddof=1)**2 + np.std(cand_gal_dec,ddof=1)**2)/2)
+    gamma = 10**(np.sum(np.log10(fq(cand_gal_ra, cand_gal_dec, cand_gal_ra, cand_gal_dec, triweight, h_opt)))/(N))
+    lam = (gamma/fq(cand_gal_ra, cand_gal_dec, cand_gal_ra, cand_gal_dec, triweight, h_opt))**0.5
+
+    h = h_c*h_opt*lam
+
+    ra_res = 100
+    ra_min = cand_gal_ra.min()
+    ra_max = cand_gal_ra.max()
+    
+    dec_res = 100
+    dec_min = cand_gal_dec.min()
+    dec_max = cand_gal_dec.max()
+
+    ra_grid = np.linspace(ra_min, ra_max, ra_res)
+    dec_grid = np.linspace(dec_min, dec_max, dec_res)
+
+    X, Y = np.meshgrid(ra_grid, dec_grid)
+    den = fq(X, Y, cand_gal_ra, cand_gal_dec, triweight, h)
+    max_ra_idx, max_dec_idx = np.unravel_index(np.argmax(den, axis=None), den.shape)
+    cl_ra = ra_grid[max_ra_idx]
+    cl_dec = dec_grid[max_dec_idx]
+
+    return cl_ra, cl_dec, cl_z*c
+
+
 
 def Diaferio_density(x_data, y_data, x_grid, y_grid):
     
