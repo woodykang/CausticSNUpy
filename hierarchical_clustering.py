@@ -1,34 +1,36 @@
-import numpy as np
-from pandas import cut
-import scipy.cluster
-import matplotlib.pyplot as plt
-
 # This function constructs a binary tree from galaxies using hierarchical clustering,
 # and then determines candidate members of a galaxy cluser.
 # Although the candidate members do not perfectly match with the actual members,
 # they are useful in cases such as when determining the size of the cluster.
 # See Section 4.1 of Serra et al. 2011, MNRAS.
 
+import numpy as np
+import scipy.cluster
+def hier_clustering(gal_ra, gal_dec, gal_v, threshold="ALS", gal_m = 1e12):
+    '''
+    Constructs binary tree using hierarchical clustering and finds candidate member galaxies.
+    This function is based on Diaferio 1999 and Serra et al. 2011.
 
-def hier_clustering(gal_ra, gal_dec, gal_v, threshold="AD"):
+    Parameters
+    ---------------------------
+    gal_ra      : numpy ndarray,    RA of galaxies (in units of deg)
+    gal_dec     : numpy ndarray,    Dec of galaxies (in units of deg)
+    gal_v       : numpy ndarray,    l.o.s. vel of galaxies (in units of km/s)
+    threshold   : str,              threshold of cutting the binary tree; "AD" for Antonaldo Diaferio (explicated in Appendix A, Diaferio 1999) and "ALS" for Ana Laura Serra (explicated in Section 4.2, Serra et al. 2011); for the moment, only ALS method is available; default value "ALS"
+    gal_m       : float,            mass of a single galaxy (in units of solar mass); default value 1e12
 
-    ################### INPUTS ###################
-    # gal_ra  : RA of galaxies in degree
-    # gal_dec : Dec of galaxies in degree
-    # gal_v   : l.o.s. velocities of galaxies in km/s
-    ################### RETURN ###################
-    # member_idx : indices of candidate members
-    ################# REFERENCE ##################
-    # Serra et al. 2011, MNRAS
-    ##############################################
+    Returns
+    ---------------------------
+    list of 0s and 1s, where 0 is for non-candidate members and 1 is for candidate members
+    '''
 
     N = len(gal_ra)                         # number of galaxies
 
     # constants
-    m = 1e12  * 2e30                        # mass of a single galaxy [kg] (1 solar mass = 2e30 kg)
-    G = 6.67e-11                            # gravitational constant  [N m^2 kg^-2]
-    c = 299792.458                           # speed of light          [km/s]
-    H0 = 100                                 # Hubble constant         [km/s/Mpc]
+    m = gal_m  * 2e30                       # mass of a single galaxy (in units of kg) (1 solar mass = 2e30 kg)
+    G = 6.67e-11                            # gravitational constant  (in units of N m^2 kg^-2)
+    c = 299792.458                          # speed of light          (in units of km/s)
+    H0 = 100                                # Hubble constant         (in units of km/s/Mpc)
     Mpc = 3.086e22                          # conversion factor from Mpc to meter
     km = 1000                               # conversion factor from km to meter
 
@@ -39,27 +41,27 @@ def hier_clustering(gal_ra, gal_dec, gal_v, threshold="AD"):
     gal_ra_rad = gal_ra * np.pi/180                 # RA of each galaxies in radians
     gal_dec_rad = gal_dec * np.pi/180               # Declination of each galaxies in radians
 
-    ri = np.stack([  r_m*np.cos(gal_dec_rad)*np.cos(gal_ra_rad),   r_m*np.cos(gal_dec_rad)*np.sin(gal_ra_rad),   r_m*np.sin(gal_dec_rad)], axis=-1)             # vector r_i from Serra et al. 2011 [m]
-    vi = np.stack([gal_v*np.cos(gal_dec_rad)*np.cos(gal_ra_rad), gal_v*np.cos(gal_dec_rad)*np.sin(gal_ra_rad), gal_v*np.sin(gal_dec_rad)], axis=-1) * km        # velocity vector in the same direction as ri and with magnitude gal_v [m/s]
+    ri = np.stack([  r_m*np.cos(gal_dec_rad)*np.cos(gal_ra_rad),   r_m*np.cos(gal_dec_rad)*np.sin(gal_ra_rad),   r_m*np.sin(gal_dec_rad)], axis=-1)             # vector r_i from Serra et al. 2011 (in units of m)
+    vi = np.stack([gal_v*np.cos(gal_dec_rad)*np.cos(gal_ra_rad), gal_v*np.cos(gal_dec_rad)*np.sin(gal_ra_rad), gal_v*np.sin(gal_dec_rad)], axis=-1) * km        # velocity vector in the same direction as ri and with magnitude gal_v (in units of m/s)
 
-    rij = np.stack([np.subtract.outer(ri[:,0], ri[:,0]), np.subtract.outer(ri[:,1], ri[:,1]), np.subtract.outer(ri[:,2], ri[:,2])], axis=-1)                    # vector r_12 from Serra et al. 2011 [m]
-    vij = np.stack([np.subtract.outer(vi[:,0], vi[:,0]), np.subtract.outer(vi[:,1], vi[:,1]), np.subtract.outer(vi[:,2], vi[:,2])], axis=-1)                    # vector v_i - v_j [m/s]
-    lij = np.stack([     np.add.outer(ri[:,0], ri[:,0]),      np.add.outer(ri[:,1], ri[:,1]),      np.add.outer(ri[:,2], ri[:,2])], axis=-1)/2                  # vector l_12 from Serra et al. 2011 [m]
+    rij = np.stack([np.subtract.outer(ri[:,0], ri[:,0]), np.subtract.outer(ri[:,1], ri[:,1]), np.subtract.outer(ri[:,2], ri[:,2])], axis=-1)                    # vector r_12 from Serra et al. 2011 (in units of m)
+    vij = np.stack([np.subtract.outer(vi[:,0], vi[:,0]), np.subtract.outer(vi[:,1], vi[:,1]), np.subtract.outer(vi[:,2], vi[:,2])], axis=-1)                    # vector v_i - v_j (in units of m/s)
+    lij = np.stack([     np.add.outer(ri[:,0], ri[:,0]),      np.add.outer(ri[:,1], ri[:,1]),      np.add.outer(ri[:,2], ri[:,2])], axis=-1)/2                  # vector l_12 from Serra et al. 2011 (in units of m)
 
-    pi_r = (rij[:,:,0]*lij[:,:,0] + rij[:,:,1]*lij[:,:,1] + rij[:,:,2]*lij[:,:,2]) / np.sqrt(lij[:,:,0]**2 + lij[:,:,1]**2 + lij[:,:,2]**2)                     # pi from eq. 12 of Serra et al. 2011 in dimension of distance [m]
-    pi_v = (vij[:,:,0]*lij[:,:,0] + vij[:,:,1]*lij[:,:,1] + vij[:,:,2]*lij[:,:,2]) / np.sqrt(lij[:,:,0]**2 + lij[:,:,1]**2 + lij[:,:,2]**2)                     # pi from eq. 12 of Serra et al. 2011 in dimension of velocity [m/s]
+    pi_r = (rij[:,:,0]*lij[:,:,0] + rij[:,:,1]*lij[:,:,1] + rij[:,:,2]*lij[:,:,2]) / np.sqrt(lij[:,:,0]**2 + lij[:,:,1]**2 + lij[:,:,2]**2)                     # pi from eq. 12 of Serra et al. 2011 in dimension of distance (in units of m)
+    pi_v = (vij[:,:,0]*lij[:,:,0] + vij[:,:,1]*lij[:,:,1] + vij[:,:,2]*lij[:,:,2]) / np.sqrt(lij[:,:,0]**2 + lij[:,:,1]**2 + lij[:,:,2]**2)                     # pi from eq. 12 of Serra et al. 2011 in dimension of velocity (in units of m/s)
 
-    rp = np.sqrt(rij[:,:,0]**2 + rij[:,:,1]**2 + rij[:,:,2]**2 - pi_r**2)                                                                                       # r_p from eq. 13 of Serra et al. 2011 [m]
+    rp = np.sqrt(rij[:,:,0]**2 + rij[:,:,1]**2 + rij[:,:,2]**2 - pi_r**2)                                                                                       # r_p from eq. 13 of Serra et al. 2011 (in units of m)
 
     zlplus1 = (0.5* np.add.outer(1/np.sqrt(1+zi), 1/np.sqrt(1+zi)))**(-2)                                                                                       # z_l + 1, with z_l satisfying r_l = (r_1 + r_2)/2
-    Rp = rp/zlplus1                                                                                                                                             # R_p from Serra et al. 2011 [m]
-    Pi = pi_v/zlplus1                                                                                                                                           # Pi  from Serra et al. 2011 [m/s]
+    Rp = rp/zlplus1                                                                                                                                             # R_p from Serra et al. 2011 (in units of m)
+    Pi = pi_v/zlplus1                                                                                                                                           # Pi  from Serra et al. 2011 (in units of m/s)
 
     di = np.diag_indices(N)                             # diagonal indices of N by N square matrix
     Rp[di] = 1                                          # arbitrarily set diagonal of Rp as 1, because its value is 0.
     Pi[di] = 1                                          # arbitrarily set diagonal of Pi as 1, because its value is 0.
 
-    E = -G * m*m/Rp + 0.5 * m*m/(m+m) *Pi**2            # binding energy (i.e. measure of similarity)
+    E = -G * m*m/Rp + 0.5 * m*m/(m+m) *Pi**2            # binding energy (i.e. measure of similarity) (in units of J)
     E[di] = 0                                           # set diagoal of E as 0; this is necessary for scipy.clustering to work.
 
 
@@ -88,12 +90,12 @@ def hier_clustering(gal_ra, gal_dec, gal_v, threshold="AD"):
         if lchild < N:                  # Case: left child is a leaf node.
             leaf += [lchild]            ##### Left child is added to the list of leaf nodes hanging from node i+N.
         else:                           # Case: left child is not a leaf node.
-            leaf += leaves[lchild-N]    #### Leaf nodes hanging from left child is added to the list of leaf nodes haning from node i+N.
+            leaf += leaves[lchild-N]    ##### Leaf nodes hanging from left child is added to the list of leaf nodes haning from node i+N.
 
         if rchild < N:                  # Case: right child is a leaf node.
-            leaf += [rchild]            #### Righ child is added to the list of leaf nodes hanging from node i+N.
+            leaf += [rchild]            ##### Righ child is added to the list of leaf nodes hanging from node i+N.
         else:                           # Case: right child is not a leaf node.
-            leaf += leaves[rchild-N]    #### Leaf nodes hanging from right child is added to the list of nodes hanging from node i+N.
+            leaf += leaves[rchild-N]    ##### Leaf nodes hanging from right child is added to the list of nodes hanging from node i+N.
         
         leaves[i] = leaf
 
@@ -102,23 +104,23 @@ def hier_clustering(gal_ra, gal_dec, gal_v, threshold="AD"):
 
     i = nnode+N-1                                                   # initial node of the branch (root node)
     while(True):                                                    # The while loop iterates only if iterate is True, i.e. the left and right children of the root node are not leaf nodes.
-        lchild, rchild = Z[i-N, 0:2]                                  # left and right children of the node i.
+        lchild, rchild = Z[i-N, 0:2]                                # left and right children of the node i.
         if lchild < N:                                              # Case: left child is a leaf node.
-            i = rchild                                              #### The next node is set to the right child.
-            mainbranch = np.append(mainbranch, [rchild])            #### Right child is added to the mainbranch, i.e. the mainbranch follows the right child.
-            if rchild < N:                                          #### Case: right child is a leaf node.
-                break                                               ######### Reached the bottom of the binary tree.
+            i = rchild                                              ##### The next node is set to the right child.
+            mainbranch = np.append(mainbranch, [rchild])            ##### Right child is added to the mainbranch, i.e. the mainbranch follows the right child.
+            if rchild < N:                                          ##### Case: right child is a leaf node.
+                break                                               ########## Reached the bottom of the binary tree.
 
         elif count_leaf[lchild - N] > count_leaf[rchild - N]:       # Case: # of leaf nodes hanging from the left node is greater than # of leaf nodes hanging from the right node.
-            i = lchild                                              #### The next node is set to the left child.
-            mainbranch = np.append(mainbranch, [lchild])            #### Left child is added to the mainbranch, i.e. the mainbranch follows the left child.
+            i = lchild                                              ##### The next node is set to the left child.
+            mainbranch = np.append(mainbranch, [lchild])            ##### Left child is added to the mainbranch, i.e. the mainbranch follows the left child.
         else:                                                       # Case: # of leaf nodes hanging from the right node is greater than or equal to # of leaf nodes hanging from the left node.         
-            i = rchild                                              #### The next node is set to the right child.
-            mainbranch = np.append(mainbranch, [rchild])            #### Right child is added to the mainbranch, i.e. the mainbranch follows the right child.
+            i = rchild                                              ##### The next node is set to the right child.
+            mainbranch = np.append(mainbranch, [rchild])            ##### Right child is added to the mainbranch, i.e. the mainbranch follows the right child.
 
-    mainbranch = mainbranch[:-1]                    # exclude the last node, which is a leaf node.
+    mainbranch = mainbranch[:-1]                                    # exclude the last node, which is a leaf node.
 
-    sigma = np.zeros(mainbranch.size)               # velocity dispersion at each level of the main branch.
+    sigma = np.zeros(mainbranch.size)                               # velocity dispersion at each level of the main branch.
     for i, node in enumerate(mainbranch):
         sigma[i] = np.std(gal_v[leaves[node-N]])
 
@@ -132,10 +134,10 @@ def hier_clustering(gal_ra, gal_dec, gal_v, threshold="AD"):
     elif threshold == "ALS":
         cut_idx = ALScut(sigma, sig_pl)
 
-    cand_mem_idx = leaves[mainbranch[cut_idx]-N]
+    cand_mem_idx = leaves[mainbranch[cut_idx]-N]                    # indices of candidate members are the leaves hanging from the cut
 
     cand_mem = np.zeros(N)
-    cand_mem[cand_mem_idx] = 1
+    cand_mem[cand_mem_idx] = 1                                      # assign value 1 to candidate members
     
     return cand_mem_idx
 
@@ -163,22 +165,21 @@ def ADcut(mainbranch, count_leaf, N, Z, sigma, sig_pl, f=0.1):
             
 
 def ALScut(sigma, sig_pl):
-    N03 = np.sum(np.abs(sig_pl - sigma)/sig_pl < 0.3)                # N_0.3 described in Section 4.2 of Serra et al. 2011.
+    N03 = np.sum(np.abs(sig_pl - sigma)/sig_pl < 0.3)                               # N_0.3 described in Section 4.2 of Serra et al. 2011.
 
-    delta = 0.03                                                    # delta ranges from 0.03 to 0.1
+    delta = 0.03                                                                    # delta ranges from 0.03 to 0.1
     while (delta < 0.3):
-        N_del = np.sum(np.abs(sig_pl - sigma)/sig_pl < delta)
+        N_del = np.sum(np.abs(sig_pl - sigma)/sig_pl < delta)                       # number of nodes with in delta range
         if N_del >= 0.8*N03:
             break
         
         else:
             delta += 0.01
 
-    if np.where(np.abs(sig_pl - sigma)/sig_pl < delta)[0].size < 5:
-        cut_idx = 0
+    if np.where(np.abs(sig_pl - sigma)/sig_pl < delta)[0].size < 5:                 # If we cannot find a plateau of large enouge size,
+        cut_idx = 0                                                                 # then we treat the first node as the cut.
     else:
-        cand_cut_idx = np.where(np.abs(sig_pl - sigma)/sig_pl < delta)[0][0:5]
-        cut_idx = cand_cut_idx[np.argmin(np.abs(sig_pl - sigma[cand_cut_idx]))]
+        cand_cut_idx = np.where(np.abs(sig_pl - sigma)/sig_pl < delta)[0][0:5]      # candidate of cuts are the first five nodes within the delta range
+        cut_idx = cand_cut_idx[np.argmin(np.abs(sig_pl - sigma[cand_cut_idx]))]     # the final cut is selected as the one with the least discrepancy from the sigma plateau
 
-        
     return cut_idx
