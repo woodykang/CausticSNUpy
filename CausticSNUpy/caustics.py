@@ -16,18 +16,9 @@ import astropy.coordinates
 import astropy.units
 import astropy.cosmology
 import skimage.measure
-<<<<<<< HEAD:CausticSNUpy/caustics.py
 from .hierarchical_clustering import hier_clustering
 
-<<<<<<< HEAD:CausticSNUpy/caustics.py
 class Caustics:
-=======
-=======
-from hierarchical_clustering import hier_clustering
-
->>>>>>> parent of bc254f3 ([update]):CausticSNUpy.py
-class caustics:
->>>>>>> parent of bc254f3 ([update]):CausticSNUpy.py
 
     '''
     Python implementation for caustic technique presented in Diaferio 1999 and Serra et al. 2011.
