@@ -136,7 +136,7 @@ class Caustics:
         self.A = A
         self.member = member
 
-    def create_member_list(self, new_path = None):
+    def create_member_list(self, new_fpath = None):
 
         '''
         Create a txt file with a fourth column appended to the original galaxy data indicating the membership.
