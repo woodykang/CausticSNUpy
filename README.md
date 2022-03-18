@@ -5,23 +5,35 @@ CausticApp, a program written by Serra and Diaferio, was used as a benchmark for
 
 ## Dependencies
 ### Required Packages
-* `numpy`
-* `scipy`
-* `astropy`
-* `skimage`
+* NumPy
+* SciPy
+* astropy
+* scikit-image
 
 ### Tested with:
 * Python 3.9.7
 * numpy 1.20.3
 * scipy 1.7.1
 * astropy 4.3.1
-* skimage 0.18.3
+* scikit-image 0.18.3
 
 ## How to install
 This package is currently only available through manual installation.  
-After downloading and unzipping the tar.gz file, follow the below steps.
+After downloading and the tar.gz file, follow one of the following methods.
+
+### Method 1: using pip
+1. Open terminal and change directory to where tar.gz file is located.
+2. Type and run `pip install` + tar.gz file name.
+```
+pip install CausticSNUpy-0.0.1.tar.gz
+```
+
+### Method 2: run setup.py
 1. Open terminal and change directory to where setup.py is located.
-2. In your terminal, type and run `python setup.py install`. This command line will install the package.
+2. In your terminal, type and run
+```
+python setup.py install
+```
 3. Now you are ready to use this package!
 
 ## How to uninstall
