@@ -38,7 +38,10 @@ python setup.py install
 
 ## How to uninstall
 1. Open terminal (any directory is fine).
-2. In your terminal, type and run `pip uninstall CausticSNUpy`.
+2. In your terminal, type and run 
+```
+pip uninstall CausticSNUpy
+```
 
 ## How to use
 ### Input file
