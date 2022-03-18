@@ -18,6 +18,9 @@ import astropy.cosmology
 import skimage.measure
 from hierarchical_clustering import hier_clustering
 
+def create_caustics(fpath, v_lower, v_upper, r_max, center_given = False, H0 = 100, Om0 = 0.3, Ode0 = 0.7, Tcmb0 = 2.7, q = 25, r_res = 100, v_res = 100, BT_thr = "ALS", grad_limit = 2):
+    return caustics(fpath, v_lower, v_upper, r_max, center_given = False, H0 = 100, Om0 = 0.3, Ode0 = 0.7, Tcmb0 = 2.7, q = 25, r_res = 100, v_res = 100, BT_thr = "ALS", grad_limit = 2)
+
 class caustics:
 
     '''
