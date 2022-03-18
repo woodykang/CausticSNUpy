@@ -136,19 +136,11 @@ class Caustics:
         self.A = A
         self.member = member
 
-<<<<<<< HEAD
-    def create_member_list(self, new_fpath = None):
-
-        '''
-        Create a txt file with a fourth column appended to the original galaxy data indicating the membership.
-        If directory of the new file (new_fpath) is unspecified, the new file will be saved at fpath + ".member.txt", where fpath is the file path to the data.
-=======
     def create_member_list(self, new_path = None):
 
         '''
         Create a txt file with a fourth column appended to the original galaxy data indicating the membership.
         If directory of the new file (new_path) is unspecified, the new file will be saved at fpath + ".member.txt", where fpath is the file path to the data.
->>>>>>> 84ca9f19bae1ea2b759eaef23aebebae8f0326da
         If new_path is given, the file will be saved as new_path.
         '''
         
@@ -162,17 +154,10 @@ class Caustics:
         data = np.loadtxt(self.fpath, skiprows=1)                                  # original data
 
         mem_data = np.append(data, full_member.reshape((self.N,1)), axis=1)        # append membership array to original data
-<<<<<<< HEAD
         if new_fpath is None:
             new_fpath = self.fpath + ".member.txt"
 
         np.savetxt(fname=new_fpath, X=mem_data, header=header, comments='')        # create and save new file containing membership information
-=======
-        if new_path is None:
-            new_path = self.path + ".member.txt"
-
-        np.savetxt(fname=new_path, X=mem_data, header=header, comments='')        # create and save new file containing membership information
->>>>>>> 84ca9f19bae1ea2b759eaef23aebebae8f0326da
 
     def full_member_list(self):
         full_member = np.zeros(self.N)                                             # numpy array that will store 1 for members and 0 for interlopers
