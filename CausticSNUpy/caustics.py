@@ -16,7 +16,7 @@ import astropy.coordinates
 import astropy.units
 import astropy.cosmology
 import skimage.measure
-from hierarchical_clustering import hier_clustering
+from .hierarchical_clustering import hier_clustering
 
 class caustics:
 
