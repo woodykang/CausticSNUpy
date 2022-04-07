@@ -150,7 +150,7 @@ class Caustics:
         idx = idx[np.where(self.member)[0]]
         full_member[idx] = 1          # set array value to 1 for members
 
-        header = "{} {} {} {}".format(*np.loadtxt(self.fpath, max_rows=1))         # first line of the newly created file; this is same as the first line of original data file given as input
+        header = "{} {} {} {}".format(self.N, self.cl_ra, self.cl_dec, self.cl_v)  # first line of the newly created file; this is same as the first line of original data file given as input
         data = np.loadtxt(self.fpath, skiprows=1)                                  # original data
 
         mem_data = np.append(data, full_member.reshape((self.N,1)), axis=1)        # append membership array to original data
@@ -188,6 +188,7 @@ class Caustics:
             N = int(cluster_data[0])                                                    # number of galaxies given as input
         else:
             N = int(cluster_data)
+        
         if N != gal_ra.size:                                                            # emit error if N does not match the actual number of galaxies listed in the file
             raise Exception("Number of galaxies stated in the first line of file does not match the number of galaxies listed.")
         
