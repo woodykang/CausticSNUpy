@@ -184,7 +184,10 @@ class Caustics:
                                                                                         # where N is number of galaxies observed, and
                                                                                         # cl_ra, cl_dec, cl_z are RA (deg), DEC (deg), los velocity (km/s) of the cluster (if specified)
         
-        N = int(cluster_data[0])                                                        # number of galaxies given as input
+        if self.center_given == True:
+            N = int(cluster_data[0])                                                    # number of galaxies given as input
+        else:
+            N = int(cluster_data)
         if N != gal_ra.size:                                                            # emit error if N does not match the actual number of galaxies listed in the file
             raise Exception("Number of galaxies stated in the first line of file does not match the number of galaxies listed.")
         
