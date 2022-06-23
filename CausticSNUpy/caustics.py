@@ -150,14 +150,23 @@ class Caustics:
         idx = idx[np.where(self.member)[0]]
         full_member[idx] = 1          # set array value to 1 for members
 
-        header = "{} {} {} {}".format(self.N, self.cl_ra, self.cl_dec, self.cl_v)  # first line of the newly created file; this is same as the first line of original data file given as input
+        header = "{} {} {} {}".format(*np.loadtxt(self.fpath, max_rows=1))         # first line of the newly created file; this is same as the first line of original data file given as input
         data = np.loadtxt(self.fpath, skiprows=1)                                  # original data
 
         mem_data = np.append(data, full_member.reshape((self.N,1)), axis=1)        # append membership array to original data
         if new_fpath is None:
             new_fpath = self.fpath + ".member.txt"
 
-        np.savetxt(fname=new_fpath, X=mem_data, header=header, comments='')        # create and save new file containing membership information
+        input_f = open(self.fpath, 'r')
+        output_f = open(new_fpath, 'w')
+        lines = input_f.readlines()
+        output_f.write(lines[0])
+        for i in range(len(full_member)):
+            line = lines[i+1].rstrip()
+            output_f.write(line + "{%5d}".format(full_member[i]) + '\n')
+        input_f.close()
+        output_f.close()
+        #np.savetxt(fname=new_fpath, X=mem_data, header=header, comments='')        # create and save new file containing membership information
 
     def full_member_list(self):
         full_member = np.zeros(self.N)                                             # numpy array that will store 1 for members and 0 for interlopers
