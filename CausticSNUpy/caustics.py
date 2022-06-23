@@ -144,7 +144,7 @@ class Caustics:
         If new_path is given, the file will be saved as new_path.
         '''
         
-        full_member = np.zeros(self.N)                                             # numpy array that will store 1 for members and 0 for interlopers
+        full_member = np.zeros(self.N).astype(int)                                             # numpy array that will store 1 for members and 0 for interlopers
         idx = np.where(self.v_cutoff_idx)[0]
         idx = idx[np.where(self.r_cutoff_idx)[0]]
         idx = idx[np.where(self.member)[0]]
