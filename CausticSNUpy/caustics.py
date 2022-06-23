@@ -163,7 +163,7 @@ class Caustics:
         output_f.write(lines[0])
         for i in range(len(full_member)):
             line = lines[i+1].rstrip()
-            output_f.write(line + "{%5d}".format(full_member[i]) + '\n')
+            output_f.write(line + "{:5d}".format(full_member[i]) + '\n')
         input_f.close()
         output_f.close()
         #np.savetxt(fname=new_fpath, X=mem_data, header=header, comments='')        # create and save new file containing membership information
