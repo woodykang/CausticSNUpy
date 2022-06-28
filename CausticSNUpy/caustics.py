@@ -38,6 +38,11 @@ class Caustics:
     r_res           : int,      resolution of the redshift diagram in the r-axis; default value 100
     v_res           : int,      resolution of the redshift diagram in the v-axis; default value 100
     BT_thr          : str,      Binary Tree treshold, should be either "AD" or "ALS" (currently only ALS is supported); default value "ALS"
+    gal_m           : float,    mass of single galaxy assumed for hierarchical clustering method; default value 1e12
+    h_c             : float,    smoothing length used for KDE; if None, the program finds it; default value None
+    kappa           : float,    user's choice of kappa for caustic determination; if None, the program finds it; if an input is given, kappa is fixed; default value None
+    alpha           : float,    coefficient for smoothing factor h_c; this is multiplied to the final value of h_c if the user thinks the caustic is too noisy; default value 1
+    grad_limit      : float,    maximum value of d ln(A) / d ln(r) permitted (see Section 4.3, Serra et al. 2011); default value 2 
 
     Attributes
     ---------------------------
@@ -56,7 +61,6 @@ class Caustics:
     cl_v                : float,            radial velocity of cluster center (in units of km/s); if center_given == True, it is same as the value given in the input file
     R                   : float,            mean projected distance from the cluster center to candidate member galaxies (in units of Mpc)
     vvar                : float,            variance of relative l.o.s. velocity of candidate member galaxies (in units of (km/s)^2)
-    grad_limit          : float,            maximum value of d ln(A) / d ln(r) permitted (see Section 4.3, Serra et al. 2011); default value 2
 
     Note
     ---------------------------
@@ -70,7 +74,7 @@ class Caustics:
 
     c = 299792.458                              # speed of light in km/s
 
-    def __init__(self, fpath, v_lower, v_upper, r_max, center_given = False, H0 = 100, Om0 = 0.3, Ode0 = 0.7, Tcmb0 = 2.7, q = 25, r_res = 100, v_res = 100, BT_thr = "ALS", grad_limit = 2):
+    def __init__(self, fpath, v_lower, v_upper, r_max, center_given=False, H0=100, Om0=0.3, Ode0=0.7, Tcmb0=2.7, q=25, r_res=100, v_res=100, BT_thr="ALS", gal_m=1e12, h_c = None, kappa=None, alpha=1, grad_limit=2):
         self.fpath = fpath                      # str,      file path of data
         self.v_lower = v_lower                  # float,    lower limit of l.o.s. velocity that member galaxies should have (in units of km/s)
         self.v_upper = v_upper                  # float,    upper limit of l.o.s. velocity that member galaxies should have (in units of km/s)
@@ -84,6 +88,10 @@ class Caustics:
         self.r_res = r_res                      # int,      resolution of the redshift diagram in the r-axis; default value 100
         self.v_res = v_res                      # int,      resolution of the redshift diagram in the v-axis; default value 100
         self.BT_thr = BT_thr                    # str,      Binary Tree treshold, should be either "AD" or "ALS" (currently only ALS is supported); default value "ALS"
+        self.gal_m = gal_m                      # float,    mass of single galaxy assumed for hierarchical clustering method; default value 1e12
+        self.h_c = h_c                          # float,    smoothing length used for KDE; if None, the program finds it; default value None
+        self.kappa = kappa                      # float,    user's choice of kappa for caustic determination; if None, the program finds it; if an input is given, kappa is fixed; default value None
+        self.alpha = alpha                      # float,    coefficient for smoothing factor h_c; this is multiplied to the final value of h_c if the user thinks the caustic is too noisy; default value 1
         self.grad_limit = grad_limit            # float,    maximum value of d ln(A) / d ln(r) permitted (see Section 4.3, Serra et al. 2011); default value 2
         
     def run(self):
@@ -107,20 +115,22 @@ class Caustics:
         X, Y = np.meshgrid(x_grid, y_grid)                                  # mesh grid
         den = f(X, Y)                                                       # number density estimated at each point X, Y
 
-        # minimize S(k) to get optimal kappa value
-        print("Minimizing S(k) to find kappa.")
-
         a = den.min()
         b = den.max()
         fn = lambda kappa: self.S(kappa, r_grid, v_grid, self.r_res, den, self.R, self.vvar)            # lambda function is used to fix other parameters except for kappa; thus, fn is only a function of kappa and is the S(k) function described in Diaferio 1999
-        kappa = self.minimize_fn(fn, a, b, positive = True)                                             # kappa that minimizes fn (= S(k))
-        
-        print("kappa found. kappa =  {}, S(k) = {}.".format(kappa, fn(kappa)))
-        print("")
+        if self.kappa is None:
+            # minimize S(k) to get optimal kappa value
+            print("Minimizing S(k) to find kappa.")
+            self.kappa = self.minimize_fn(fn, a, b, positive = True)                                             # kappa that minimizes fn (= S(k))
+            
+            print("kappa found. kappa =  {:.5e}, S(k) = {:.5e}.".format(self.kappa, fn(self.kappa)))
+            print("")
+        else:
+            print("User input for kappa = {:.5e}, S(k) = {:.5e}".format(self.kappa, fn(self.kappa)))
     
         # calculate A(r) with the minimized kappa
         print("Drawing caustic lines.")
-        A = self.calculate_A(kappa, den, r_grid, v_grid)                    # calculate the final amplitude of caustic lines
+        A = self.calculate_A(self.kappa, den, r_grid, v_grid)                    # calculate the final amplitude of caustic lines
         print("Caustic line calculation done.\n")
 
         # determine membership
@@ -134,7 +144,6 @@ class Caustics:
         self.r_grid = r_grid
         self.v_grid = v_grid
         self.den = den
-        self.kappa = kappa
         self.A = A
         self.member = member
         self.full_member = full_member
@@ -196,7 +205,7 @@ class Caustics:
 
         if not self.center_given:                                                                       # if coordinates of the cluster center is not given by the user, 
             cl_ra, cl_dec, cl_v = self.find_cluster_center(gal_ra, gal_dec, gal_v, cand_mem_idx)        # calculate it using the candidate members; see Section 4.3, Serra et al. 2011
-            print("Cluster center : RA = {} deg, Dec =  {} deg, v = {} km/s".format(cl_ra, cl_dec, cl_v))
+            print("Cluster center : RA = {:4.5f} deg, Dec =  {:4.5f} deg, v = {:6f} km/s".format(cl_ra, cl_dec, cl_v))
         else:
             cl_ra, cl_dec, cl_v = cluster_data[1:]
         
@@ -213,8 +222,8 @@ class Caustics:
         vvar = np.var(v[cand_mem_idx], ddof=1)      # variance of v calculated from candidate members (in units of (km/s)**2); later to be used for function S(k)
         R = np.average(r[cand_mem_idx])             # average projected distance from the center of the cluster to candidate member galaxies (in units of Mpc); later to be used for function S(k)
 
-        print("Velocity Dispersion : {} km/s".format(np.sqrt(vvar)))
-        print("Mean distance       : {} Mpc".format(R))
+        print("Velocity Dispersion : {:4.5f} km/s".format(np.sqrt(vvar)))
+        print("Mean distance       : {:4.5f} Mpc".format(R))
 
         # apply projected distance cutoff
         r_cutoff_idx = (r < self.r_max)                                                 # numpy array where values are 1 for galaxies within r_max and 0 for galaxies outside r_max
@@ -347,10 +356,15 @@ class Caustics:
         lam = (gamma/self.fq(x_data_mirrored, y_data_mirrored, x_data_mirrored, y_data_mirrored, self.triweight, h_opt))**0.5                                   # lambda defined in Diaferio 1999, between eq. 17 and eq. 18
 
         fn = lambda h_c: self.M_0(h_c, h_opt, lam, x_data_mirrored, y_data_mirrored)                                                                            # M_0 function defined in eq. 18 from Diaferio 1999; Here we used the lambda function to fix input arguments other than h_c.
+        if self.h_c is None:
+            print("Calculating h_c.")
+            self.h_c = self.minimize_fn(fn, 0.005, 2, positive=True)                                                                                                     # find h_c that minimizes M_0
+            print("h_c = {:.5e}".format(self.h_c))
+        else:
+            print("User-given h_c = {:.5e}".format(self.h_c))
+        h_c = self.h_c*self.alpha
+        print("final value of h_c = {:.5e}".format(h_c))
 
-        print("Calculating h_c.")
-        h_c = self.minimize_fn(fn, 0.005, 2, positive=True)                                                                                                     # find h_c that minimizes M_0
-        print("h_c : {}".format(h_c))
         
         h = h_c * h_opt * lam                                                                                                                                   # final h_i (local smoothing length); size of h_i is same as x_data and y_data
 
