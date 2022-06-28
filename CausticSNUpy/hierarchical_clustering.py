@@ -6,7 +6,7 @@
 
 import numpy as np
 import scipy.cluster
-def hier_clustering(gal_ra, gal_dec, gal_v, threshold="ALS", gal_m = 1e12):
+def hier_clustering(gal_ra, gal_dec, gal_v, threshold="ALS", gal_m=1e12, mask=None):
     '''
     Constructs binary tree using hierarchical clustering and finds candidate member galaxies.
     This function is based on Diaferio 1999 and Serra et al. 2011.
@@ -16,17 +16,27 @@ def hier_clustering(gal_ra, gal_dec, gal_v, threshold="ALS", gal_m = 1e12):
     gal_ra      : numpy ndarray,    RA of galaxies (in units of deg)
     gal_dec     : numpy ndarray,    Dec of galaxies (in units of deg)
     gal_v       : numpy ndarray,    l.o.s. vel of galaxies (in units of km/s)
-    threshold   : str,              threshold of cutting the binary tree; "AD" for Antonaldo Diaferio (explicated in Appendix A, Diaferio 1999) and "ALS" for Ana Laura Serra (explicated in Section 4.2, Serra et al. 2011); for the moment, only ALS method is available; default value "ALS"
+    threshold   : str,              threshold of cutting the binary tree; "AD" for Antonaldo Diaferio (explicated in Appendix A, Diaferio 1999)
+                                    and "ALS" for Ana Laura Serra (explicated in Section 4.2, Serra et al. 2011);
+                                    for the moment, only ALS method is available; default value "ALS"
     gal_m       : float,            mass of a single galaxy (in units of solar mass); default value 1e12
+    mask        : numpy ndarray,    mask applied to gal_ra, gal_dec, and gal_v; if None, masking is not applied; default value None
 
     Returns
     ---------------------------
-    list of 0s and 1s, where 0 is for non-candidate members and 1 is for candidate members
+    list of 0s and 1s, where 0 is for non-candidate members and masked members and 1 is for candidate members
     '''
+
+    N_total = len(gal_ra)                   # total number of galaxies before making is applied
+    # Apply masking, if there is any.
+    if mask is not None:
+        gal_ra  = gal_ra[mask]
+        gal_dec = gal_dec[mask]
+        gal_v   = gal_v[mask]
 
     N = len(gal_ra)                         # number of galaxies
 
-    # constants
+    # Constants.
     m = gal_m  * 2e30                       # mass of a single galaxy (in units of kg) (1 solar mass = 2e30 kg)
     G = 6.67e-11                            # gravitational constant  (in units of N m^2 kg^-2)
     c = 299792.458                          # speed of light          (in units of km/s)
@@ -34,9 +44,9 @@ def hier_clustering(gal_ra, gal_dec, gal_v, threshold="ALS", gal_m = 1e12):
     Mpc = 3.086e22                          # conversion factor from Mpc to meter
     km = 1000                               # conversion factor from km to meter
 
-    # calculate pairwise binding energy
+    # Calculate pairwise binding energy.
     zi = gal_v/c                                    # redshift of each galaxy
-    r_m = 2*c/H0 * (1 - 1/np.sqrt(1 + zi)) * Mpc     # distance corresponding to redshift zi [m] (eq. 10 from Serra et al. 2011)
+    r_m = 2*c/H0 * (1 - 1/np.sqrt(1 + zi)) * Mpc    # distance corresponding to redshift zi [m] (eq. 10 from Serra et al. 2011)
 
     gal_ra_rad = gal_ra * np.pi/180                 # RA of each galaxies in radians
     gal_dec_rad = gal_dec * np.pi/180               # Declination of each galaxies in radians
@@ -65,7 +75,7 @@ def hier_clustering(gal_ra, gal_dec, gal_v, threshold="ALS", gal_m = 1e12):
     E[di] = 0                                           # set diagoal of E as 0; this is necessary for scipy.clustering to work.
 
 
-    # group galaxies
+    # Group galaxies.
     # To use scipy.cluster.hierarchy, distance matrix must be given in form of a dense matrix.
     E_dense = scipy.spatial.distance.squareform(E)                          # squareform function converts redundante matrix into dense matrix
     Z = scipy.cluster.hierarchy.single(E_dense)
@@ -136,10 +146,13 @@ def hier_clustering(gal_ra, gal_dec, gal_v, threshold="ALS", gal_m = 1e12):
 
     cand_mem_idx = leaves[mainbranch[cut_idx]-N]                    # indices of candidate members are the leaves hanging from the cut
 
-    cand_mem = np.zeros(N)
-    cand_mem[cand_mem_idx] = 1                                      # assign value 1 to candidate members
+    cand_mem = np.zeros(N).astype(bool)
+    cand_mem[cand_mem_idx] = True                                      # assign value 1 to candidate members
+
+    total_cand_mem = np.zeros(N_total).astype(bool)
+    total_cand_mem[mask] = cand_mem
     
-    return cand_mem_idx
+    return total_cand_mem
 
 def ADcut(mainbranch, count_leaf, N, Z, sigma, sig_pl, f=0.1):
     thresholds = np.asarray([0])

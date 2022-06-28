@@ -126,7 +126,9 @@ class Caustics:
         # determine membership
         print("Determining membership.")
         member = self.membership(self.r, self.v, r_grid, A)                 # numpy array where the values are 1 for members and 0 for interlopers; this is only applied to members within the cutoff limits
-        print("Membership determination deon.\n")
+        full_member = np.zeros(self.N).astype(int)
+        full_member[self.rv_mask] = member
+        print("Membership determination done.\n")
 
         # set variables to class attributes
         self.r_grid = r_grid
@@ -135,6 +137,8 @@ class Caustics:
         self.kappa = kappa
         self.A = A
         self.member = member
+        self.full_member = full_member
+
 
     def create_member_list(self, new_fpath = None):
 
@@ -143,17 +147,7 @@ class Caustics:
         If directory of the new file (new_path) is unspecified, the new file will be saved at fpath + ".member.txt", where fpath is the file path to the data.
         If new_path is given, the file will be saved as new_path.
         '''
-        
-        full_member = np.zeros(self.N).astype(int)                                             # numpy array that will store 1 for members and 0 for interlopers
-        idx = np.where(self.v_cutoff_idx)[0]
-        idx = idx[np.where(self.r_cutoff_idx)[0]]
-        idx = idx[np.where(self.member)[0]]
-        full_member[idx] = 1          # set array value to 1 for members
 
-        header = "{} {} {} {}".format(*np.loadtxt(self.fpath, max_rows=1))         # first line of the newly created file; this is same as the first line of original data file given as input
-        data = np.loadtxt(self.fpath, skiprows=1)                                  # original data
-
-        mem_data = np.append(data, full_member.reshape((self.N,1)), axis=1)        # append membership array to original data
         if new_fpath is None:
             new_fpath = self.fpath + ".member.txt"
 
@@ -161,21 +155,11 @@ class Caustics:
         output_f = open(new_fpath, 'w')
         lines = input_f.readlines()
         output_f.write(lines[0])
-        for i in range(len(full_member)):
+        for i in range(len(self.full_member)):
             line = lines[i+1].rstrip()
-            output_f.write(line + "{:5d}".format(full_member[i]) + '\n')
+            output_f.write(line + "{:5d}".format(self.full_member[i]) + '\n')
         input_f.close()
         output_f.close()
-        #np.savetxt(fname=new_fpath, X=mem_data, header=header, comments='')        # create and save new file containing membership information
-
-    def full_member_list(self):
-        full_member = np.zeros(self.N)                                             # numpy array that will store 1 for members and 0 for interlopers
-        idx = np.where(self.v_cutoff_idx)[0]
-        idx = idx[np.where(self.r_cutoff_idx)[0]]
-        idx = idx[np.where(self.member)[0]]
-        full_member[idx] = 1          # set array value to 1 for members
-
-        return full_member
 
     def unpack_data(self):
 
@@ -203,15 +187,12 @@ class Caustics:
         
         # apply velocity cutoff
         v_cutoff_idx = (gal_v > self.v_lower) & (gal_v < self.v_upper)                  # numpy array where values are 1 for galaxies within the l.o.s. velocity limit and 0 for galaxies outside the l.o.s. velocity limit
-        gal_ra = gal_ra[v_cutoff_idx]                                                   # apply cutoff to RA  data of galaxies
-        gal_dec = gal_dec[v_cutoff_idx]                                                 # apply cutoff to Dec data of galaxies
-        gal_v = gal_v[v_cutoff_idx]                                                     # apply cutoff to vel data of galaxies
 
         # shortlist candidate members using hierarchical clustering
-        cand_mem_idx = hier_clustering(gal_ra, gal_dec, gal_v)             # indices of candidate members, calculated from hierarchical clustering; see Appendix A, Diaferio 1999 and Section 4, Serra et al. 2011
+        cand_mem_idx = hier_clustering(gal_ra, gal_dec, gal_v, mask=v_cutoff_idx)             # indices of candidate members, calculated from hierarchical clustering; see Appendix A, Diaferio 1999 and Section 4, Serra et al. 2011
         print("Hierarchical clustering done.")
 
-        print("Number of candidate members : {}".format(len(cand_mem_idx)))
+        print("Number of candidate members : {}".format(sum(cand_mem_idx)))
 
         if not self.center_given:                                                                       # if coordinates of the cluster center is not given by the user, 
             cl_ra, cl_dec, cl_v = self.find_cluster_center(gal_ra, gal_dec, gal_v, cand_mem_idx)        # calculate it using the candidate members; see Section 4.3, Serra et al. 2011
@@ -220,14 +201,14 @@ class Caustics:
             cl_ra, cl_dec, cl_v = cluster_data[1:]
         
         # calculate projected distance and radial velocity
-        LCDM = astropy.cosmology.LambdaCDM(self.H0, self.Om0, self.Ode0, self.Tcmb0)               # Lambda CDM model with the given parameters
+        LCDM = astropy.cosmology.LambdaCDM(self.H0, self.Om0, self.Ode0, self.Tcmb0)                    # Lambda CDM model with the given parameters
         
         cl_z = cl_v/self.c                                                                              # redshift of the cluster center
         d_A = LCDM.angular_diameter_distance(cl_z)                                                      # angular diameter distance to the cluster center
         
-        angle = astropy.coordinates.angular_separation(cl_ra*np.pi/180, cl_dec*np.pi/180, gal_ra*np.pi/180, gal_dec*np.pi/180)     # angular separation of each galaxy and cluster center
-        r = (angle*d_A).to(astropy.units.Mpc, equivalencies = astropy.units.dimensionless_angles()).value                                         # projected distance from cluster center to each galaxy (in Mpc)
-        v = (gal_v - cl_v)/(1+cl_z)                                                                                                                         # relative l.o.s velocity with regard to cluster center
+        angle = astropy.coordinates.angular_separation(cl_ra*np.pi/180, cl_dec*np.pi/180, gal_ra*np.pi/180, gal_dec*np.pi/180)      # angular separation of each galaxy and cluster center
+        r = (angle*d_A).to(astropy.units.Mpc, equivalencies = astropy.units.dimensionless_angles()).value                           # projected distance from cluster center to each galaxy (in Mpc)
+        v = (gal_v - cl_v)/(1+cl_z)                                                                                                 # relative l.o.s velocity with regard to cluster center
 
         vvar = np.var(v[cand_mem_idx], ddof=1)      # variance of v calculated from candidate members (in units of (km/s)**2); later to be used for function S(k)
         R = np.average(r[cand_mem_idx])             # average projected distance from the center of the cluster to candidate member galaxies (in units of Mpc); later to be used for function S(k)
@@ -237,11 +218,9 @@ class Caustics:
 
         # apply projected distance cutoff
         r_cutoff_idx = (r < self.r_max)                                                 # numpy array where values are 1 for galaxies within r_max and 0 for galaxies outside r_max
-        gal_ra  = gal_ra[ r_cutoff_idx]                                                 # apply cutoff to RA  data of galaxies
-        gal_dec = gal_dec[r_cutoff_idx]                                                 # apply cutoff to Dec data of galaxies
-        gal_v   = gal_v[  r_cutoff_idx]                                                 # apply cutoff to vel data of galaxies
-        r = r[r_cutoff_idx]                                                             # apply cutoff to projected distance from the cluster center to each galaxy
-        v = v[r_cutoff_idx]                                                             # apply cutoff to relative l.o.s. velocity
+
+        r = r[cand_mem_idx & r_cutoff_idx]                                              # apply cutoff to projected distance from the cluster center to each galaxy
+        v = v[cand_mem_idx & r_cutoff_idx]                                              # apply cutoff to relative l.o.s. velocity
         
         v_min = self.v_lower - cl_v                                                     # lower bound of relative l.o.s. velocity (in units of km/s); to be used for v_grid
         v_max = self.v_upper - cl_v                                                     # upper bound of relative l.o.s. velocity (in units of km/s); to be used for v_grid
@@ -267,10 +246,12 @@ class Caustics:
         self.vvar = vvar
         self.R = R
 
-        self.r_cutoff_idx = r_cutoff_idx
         self.v_cutoff_idx = v_cutoff_idx
+        self.cand_mem_idx = cand_mem_idx
+        self.r_cutoff_idx = r_cutoff_idx
+        self.rv_mask = cand_mem_idx & r_cutoff_idx
 
-        print("Number of galaxies in vel and r_max limit : {}".format(r.size))
+        print("Number of galaxies in velocity and r_max limit : {}".format(r.size))
 
         print("Data unpacked.")
         print("")
