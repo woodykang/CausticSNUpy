@@ -228,8 +228,8 @@ class Caustics:
         # apply projected distance cutoff
         r_cutoff_idx = (r < self.r_max)                                                 # numpy array where values are 1 for galaxies within r_max and 0 for galaxies outside r_max
 
-        r = r[cand_mem_idx & r_cutoff_idx]                                              # apply cutoff to projected distance from the cluster center to each galaxy
-        v = v[cand_mem_idx & r_cutoff_idx]                                              # apply cutoff to relative l.o.s. velocity
+        r = r[v_cutoff_idx & r_cutoff_idx]                                              # apply cutoff to projected distance from the cluster center to each galaxy
+        v = v[v_cutoff_idx & r_cutoff_idx]                                              # apply cutoff to relative l.o.s. velocity
         
         v_min = self.v_lower - cl_v                                                     # lower bound of relative l.o.s. velocity (in units of km/s); to be used for v_grid
         v_max = self.v_upper - cl_v                                                     # upper bound of relative l.o.s. velocity (in units of km/s); to be used for v_grid
@@ -258,7 +258,7 @@ class Caustics:
         self.v_cutoff_idx = v_cutoff_idx
         self.cand_mem_idx = cand_mem_idx
         self.r_cutoff_idx = r_cutoff_idx
-        self.rv_mask = cand_mem_idx & r_cutoff_idx
+        self.rv_mask = v_cutoff_idx & r_cutoff_idx
 
         print("Number of galaxies in velocity and r_max limit : {}".format(r.size))
 
