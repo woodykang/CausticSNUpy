@@ -136,7 +136,7 @@ class Caustics:
         # determine membership
         print("Determining membership.")
         member = self.membership(self.r, self.v, r_grid, A)                 # numpy array where the values are 1 for members and 0 for interlopers; this is only applied to members within the cutoff limits
-        full_member = np.zeros(self.N).astype(int)
+        full_member = np.zeros(self.N).astype(bool)
         full_member[self.rv_mask] = member
         print("Membership determination done.\n")
 
