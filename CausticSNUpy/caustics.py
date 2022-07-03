@@ -113,7 +113,7 @@ class Caustics:
         print("")
 
         X, Y = np.meshgrid(x_grid, y_grid)                                  # mesh grid
-        den = f(X, Y)                                                       # number density estimated at each point X, Y
+        den = f(X, Y)*self.H0*self.q*2                                      # number density estimated at each point X, Y, normalized to be 1 when integrated along r, v axis
 
         a = den.min()
         b = den.max()
