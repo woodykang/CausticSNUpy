@@ -113,7 +113,7 @@ class Caustics:
         print("")
 
         X, Y = np.meshgrid(x_grid, y_grid)                                  # mesh grid
-        den = f(X, Y)*self.H0*self.q*2                                      # number density estimated at each point X, Y, normalized to be 1 when integrated along r, v axis
+        den = f(X, Y)*self.H0/self.q*2                                      # number density estimated at each point X, Y, normalized to be 1 when integrated along r, v axis
 
         a = den.min()
         b = den.max()
@@ -187,9 +187,15 @@ class Caustics:
                                                                                         # cl_ra, cl_dec, cl_z are RA (deg), DEC (deg), los velocity (km/s) of the cluster (if specified)
         
         if self.center_given == True:
+            if np.size(cluster_data) == 1:
+                raise Exception("First row of input file has only one number, while the center coordianates should be given.")
             N = int(cluster_data[0])                                                    # number of galaxies given as input
+            
         else:
-            N = int(cluster_data)
+            if np.size(cluster_data) == 1:
+                N = int(cluster_data)
+            else:
+                N = int(cluster_data[0])
         
         if N != gal_ra.size:                                                            # emit error if N does not match the actual number of galaxies listed in the file
             raise Exception("Number of galaxies stated in the first line of file does not match the number of galaxies listed.")
@@ -216,7 +222,7 @@ class Caustics:
         d_A = LCDM.angular_diameter_distance(cl_z)                                                      # angular diameter distance to the cluster center
         
         angle = astropy.coordinates.angular_separation(cl_ra*np.pi/180, cl_dec*np.pi/180, gal_ra*np.pi/180, gal_dec*np.pi/180)      # angular separation of each galaxy and cluster center
-        r = (angle*d_A).to(astropy.units.Mpc, equivalencies = astropy.units.dimensionless_angles()).value                           # projected distance from cluster center to each galaxy (in Mpc)
+        r = (np.sin(angle)*d_A).to(astropy.units.Mpc).value                                                                         # projected distance from cluster center to each galaxy (in Mpc)
         v = (gal_v - cl_v)/(1+cl_z)                                                                                                 # relative l.o.s velocity with regard to cluster center
 
         vvar = np.var(v[cand_mem_idx], ddof=1)      # variance of v calculated from candidate members (in units of (km/s)**2); later to be used for function S(k)
