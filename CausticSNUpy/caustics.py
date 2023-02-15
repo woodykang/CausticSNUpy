@@ -43,6 +43,7 @@ class Caustics:
     kappa           : float,    user's choice of kappa for caustic determination; if None, the program finds it; if an input is given, kappa is fixed; default value None
     alpha           : float,    coefficient for smoothing factor h_c; this is multiplied to the final value of h_c if the user thinks the caustic is too noisy; default value 1
     grad_limit      : float,    maximum value of d ln(A) / d ln(r) permitted (see Section 4.3, Serra et al. 2011); default value 2 
+    display_log     : bool,     prints the log; default value True
 
     Attributes
     ---------------------------
@@ -74,7 +75,7 @@ class Caustics:
 
     c = 299792.458                              # speed of light in km/s
 
-    def __init__(self, fpath, v_lower, v_upper, r_max, center_given=False, H0=100, Om0=0.3, Ode0=0.7, Tcmb0=2.7, q=25, r_res=100, v_res=100, BT_thr="ALS", gal_m=1e12, h_c = None, kappa=None, alpha=1, grad_limit=2):
+    def __init__(self, fpath, v_lower, v_upper, r_max, center_given=False, H0=100, Om0=0.3, Ode0=0.7, Tcmb0=2.7, q=25, r_res=100, v_res=100, BT_thr="ALS", gal_m=1e12, h_c = None, kappa=None, alpha=1, grad_limit=2, display_log=True):
         self.fpath = fpath                      # str,      file path of data
         self.v_lower = v_lower                  # float,    lower limit of l.o.s. velocity that member galaxies should have (in units of km/s)
         self.v_upper = v_upper                  # float,    upper limit of l.o.s. velocity that member galaxies should have (in units of km/s)
@@ -93,6 +94,7 @@ class Caustics:
         self.kappa = kappa                      # float,    user's choice of kappa for caustic determination; if None, the program finds it; if an input is given, kappa is fixed; default value None
         self.alpha = alpha                      # float,    coefficient for smoothing factor h_c; this is multiplied to the final value of h_c if the user thinks the caustic is too noisy; default value 1
         self.grad_limit = grad_limit            # float,    maximum value of d ln(A) / d ln(r) permitted (see Section 4.3, Serra et al. 2011); default value 2
+        self.display_log = display_log          # bool,     prints the log; default value True
         
     def run(self):
         self.unpack_data()                                                  # unpack data from given inputs
@@ -107,10 +109,12 @@ class Caustics:
         x_grid = r_grid*self.H0                                             # grid of rescaled r-axis (in units of km/s)
         y_grid = v_grid/self.q                                              # grid of rescaled v-axis (in units of km/s)
 
-        print("Estimating number density.")
+        if self.display_log == True:
+            print("Estimating number density.")
         f = self.density_estimation(x_data, y_data)                         # function that returns the number density on the redshift diagram when coordianates (x, y) are given
-        print("Number density estimation done.")
-        print("")
+        if self.display_log == True:
+            print("Number density estimation done.")
+            print("")
 
         X, Y = np.meshgrid(x_grid, y_grid)                                  # mesh grid
         den = f(X, Y)*self.H0/self.q*2                                      # number density estimated at each point X, Y, normalized to be 1 when integrated along r, v axis
@@ -120,25 +124,31 @@ class Caustics:
         fn = lambda kappa: self.S(kappa, r_grid, v_grid, self.r_res, den, self.R, self.vvar)            # lambda function is used to fix other parameters except for kappa; thus, fn is only a function of kappa and is the S(k) function described in Diaferio 1999
         if self.kappa is None:
             # minimize S(k) to get optimal kappa value
-            print("Minimizing S(k) to find kappa.")
+            if self.display_log == True:
+                print("Minimizing S(k) to find kappa.")
             self.kappa = self.minimize_fn(fn, a, b, positive = True)                                             # kappa that minimizes fn (= S(k))
-            
-            print("kappa found. kappa =  {:.5e}, S(k) = {:.5e}.".format(self.kappa, fn(self.kappa)))
-            print("")
+            if self.display_log == True:
+                print("kappa found. kappa =  {:.5e}, S(k) = {:.5e}.".format(self.kappa, fn(self.kappa)))
+                print("")
         else:
-            print("User input for kappa = {:.5e}, S(k) = {:.5e}".format(self.kappa, fn(self.kappa)))
+            if self.display_log == True:
+                print("User input for kappa = {:.5e}, S(k) = {:.5e}".format(self.kappa, fn(self.kappa)))
     
         # calculate A(r) with the minimized kappa
-        print("Drawing caustic lines.")
+        if self.display_log == True:
+            print("Drawing caustic lines.")
         A = self.calculate_A(self.kappa, den, r_grid, v_grid)                    # calculate the final amplitude of caustic lines
-        print("Caustic line calculation done.\n")
+        if self.display_log == True:
+            print("Caustic line calculation done.\n")
 
         # determine membership
-        print("Determining membership.")
+        if self.display_log == True:
+            print("Determining membership.")
         member = self.membership(self.r, self.v, r_grid, A)                 # numpy array where the values are 1 for members and 0 for interlopers; this is only applied to members within the cutoff limits
         full_member = np.zeros(self.N).astype(bool)
         full_member[self.rv_mask] = member
-        print("Membership determination done.\n")
+        if self.display_log == True:
+            print("Membership determination done.\n")
 
         # set variables to class attributes
         self.r_grid = r_grid
@@ -178,8 +188,9 @@ class Caustics:
         Construct binary tree from hierarchical clustering and find candidate members.
         Calculate projected distance from cluster center (r) and relative l.o.s. velocity (v).
         '''
-
-        print("Unpacking data.")
+        
+        if self.display_log == True:
+            print("Unpacking data.")
     
         gal_ra, gal_dec, gal_v = np.loadtxt(self.fpath, skiprows=1, unpack=True)        # RA (deg), Dec (deg), l.o.s velocity (km/s)
         cluster_data = np.loadtxt(self.fpath, max_rows = 1)                             # In the first row, the format is N, cl_ra, cl_dec, cl_v
@@ -205,13 +216,16 @@ class Caustics:
 
         # shortlist candidate members using hierarchical clustering
         cand_mem_idx = hier_clustering(gal_ra, gal_dec, gal_v, mask=v_cutoff_idx)             # indices of candidate members, calculated from hierarchical clustering; see Appendix A, Diaferio 1999 and Section 4, Serra et al. 2011
-        print("Hierarchical clustering done.")
-
-        print("Number of candidate members : {}".format(sum(cand_mem_idx)))
+        
+        if self.display_log == True:
+            print("Hierarchical clustering done.")
+        if self.display_log == True:
+            print("Number of candidate members : {}".format(sum(cand_mem_idx)))
 
         if not self.center_given:                                                                       # if coordinates of the cluster center is not given by the user, 
             cl_ra, cl_dec, cl_v = self.find_cluster_center(gal_ra, gal_dec, gal_v, cand_mem_idx)        # calculate it using the candidate members; see Section 4.3, Serra et al. 2011
-            print("Cluster center : RA = {:4.5f} deg, Dec =  {:4.5f} deg, v = {:6f} km/s".format(cl_ra, cl_dec, cl_v))
+            if self.display_log == True:
+                print("Cluster center : RA = {:4.5f} deg, Dec =  {:4.5f} deg, v = {:6f} km/s".format(cl_ra, cl_dec, cl_v))
         else:
             cl_ra, cl_dec, cl_v = cluster_data[1:]
         
@@ -228,8 +242,9 @@ class Caustics:
         vvar = np.var(v[cand_mem_idx], ddof=1)      # variance of v calculated from candidate members (in units of (km/s)**2); later to be used for function S(k)
         R = np.average(r[cand_mem_idx])             # average projected distance from the center of the cluster to candidate member galaxies (in units of Mpc); later to be used for function S(k)
 
-        print("Velocity Dispersion : {:4.5f} km/s".format(np.sqrt(vvar)))
-        print("Mean distance       : {:4.5f} Mpc".format(R))
+        if self.display_log == True:
+            print("Velocity Dispersion : {:4.5f} km/s".format(np.sqrt(vvar)))
+            print("Mean distance       : {:4.5f} Mpc".format(R))
 
         # apply projected distance cutoff
         r_cutoff_idx = (r < self.r_max)                                                 # numpy array where values are 1 for galaxies within r_max and 0 for galaxies outside r_max
@@ -266,10 +281,11 @@ class Caustics:
         self.r_cutoff_idx = r_cutoff_idx
         self.rv_mask = v_cutoff_idx & r_cutoff_idx
 
-        print("Number of galaxies in velocity and r_max limit : {}".format(r.size))
+        if self.display_log == True:
+            print("Number of galaxies in velocity and r_max limit : {}".format(r.size))
 
-        print("Data unpacked.")
-        print("")
+            print("Data unpacked.")
+            print("")
 
     def find_cluster_center(self, gal_ra, gal_dec, gal_v, cand_mem_idx):
 
@@ -363,13 +379,17 @@ class Caustics:
 
         fn = lambda h_c: self.M_0(h_c, h_opt, lam, x_data_mirrored, y_data_mirrored)                                                                            # M_0 function defined in eq. 18 from Diaferio 1999; Here we used the lambda function to fix input arguments other than h_c.
         if self.h_c is None:
-            print("Calculating h_c.")
+            if self.display_log == True:
+                print("Calculating h_c.")
             self.h_c = self.minimize_fn(fn, 0.005, 2, positive=True)                                                                                                     # find h_c that minimizes M_0
-            print("h_c = {:.5e}".format(self.h_c))
+            if self.display_log == True:
+                print("h_c = {:.5e}".format(self.h_c))
         else:
-            print("User-given h_c = {:.5e}".format(self.h_c))
+            if self.display_log == True:
+                print("User-given h_c = {:.5e}".format(self.h_c))
         h_c = self.h_c*self.alpha
-        print("final value of h_c = {:.5e}".format(h_c))
+        if self.display_log == True:
+            print("final value of h_c = {:.5e}".format(h_c))
 
         
         h = h_c * h_opt * lam                                                                                                                                   # final h_i (local smoothing length); size of h_i is same as x_data and y_data
@@ -624,8 +644,8 @@ class Caustics:
         -----------------------------
         Value that minimizes fn.
         '''
-
-        print("search range: {} ~ {}".format(a, b))
+        if self.display_log == True:
+            print("search range: {} ~ {}".format(a, b))
         
         it += 1                                                                 # number of iterations
         
@@ -669,25 +689,28 @@ class Caustics:
 
             error = abs(b - a)
             
-            print("iteration : {}".format(it), end = '\r')
+            if self.display_log == True:
+                print("iteration : {}".format(it), end = '\r')
             
             it += 1
             if it > 100:
                 raise Exception("Cannot optimize the function. Either reset the search range, or check if the function is optimizable.")
 
-        print("iteration : {}".format(it))
+        if self.display_log == True:
+            print("iteration : {}".format(it))
         if abs(a_init - a) < TOL:                                           # If a is very close to the inital value a_init, then this means that minimum value is on the left side of the search range.
             a = a_init - (b_init - a_init)
             b = a_init
             
-            print("Shifting search range to ({}, {})".format(a, b))
+            if self.display_log == True:
+                print("Shifting search range to ({}, {})".format(a, b))
             return self.minimize_fn(fn, a, b, positive, it)
             
         elif abs(b_init - b) < TOL:                                         # If b is very close to the inital value b_init, then this means that minimum value is on the right side of the search range.
             a = b_init
             b = b_init + (b_init - a_init)
-            
-            print("Shifting search range to ({}, {})".format(a, b))
+            if self.display_log == True:
+                print("Shifting search range to ({}, {})".format(a, b))
             return self.minimize_fn(fn, a, b, positive, it)
     
         return a
