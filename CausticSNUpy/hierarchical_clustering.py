@@ -58,14 +58,12 @@ def hier_clustering(gal_ra, gal_dec, gal_v, threshold="ALS", gal_m=1e12, mask=No
     vij = np.stack([np.subtract.outer(vi[:,0], vi[:,0]), np.subtract.outer(vi[:,1], vi[:,1]), np.subtract.outer(vi[:,2], vi[:,2])], axis=-1)                    # vector v_i - v_j (in units of m/s)
     lij = np.stack([     np.add.outer(ri[:,0], ri[:,0]),      np.add.outer(ri[:,1], ri[:,1]),      np.add.outer(ri[:,2], ri[:,2])], axis=-1)/2                  # vector l_12 from Serra et al. 2011 (in units of m)
 
-    pi_r = (rij[:,:,0]*lij[:,:,0] + rij[:,:,1]*lij[:,:,1] + rij[:,:,2]*lij[:,:,2]) / np.sqrt(lij[:,:,0]**2 + lij[:,:,1]**2 + lij[:,:,2]**2)                     # pi from eq. 12 of Serra et al. 2011 in dimension of distance (in units of m)
-    pi_v = (vij[:,:,0]*lij[:,:,0] + vij[:,:,1]*lij[:,:,1] + vij[:,:,2]*lij[:,:,2]) / np.sqrt(lij[:,:,0]**2 + lij[:,:,1]**2 + lij[:,:,2]**2)                     # pi from eq. 12 of Serra et al. 2011 in dimension of velocity (in units of m/s)
-
-    rp = np.sqrt(rij[:,:,0]**2 + rij[:,:,1]**2 + rij[:,:,2]**2 - pi_r**2)                                                                                       # r_p from eq. 13 of Serra et al. 2011 (in units of m)
+    pi = (rij[:,:,0]*lij[:,:,0] + rij[:,:,1]*lij[:,:,1] + rij[:,:,2]*lij[:,:,2]) / np.sqrt(lij[:,:,0]**2 + lij[:,:,1]**2 + lij[:,:,2]**2)                     # pi from eq. 12 of Serra et al. 2011 in dimension of distance (in units of m)
+    rp = np.sqrt(rij[:,:,0]**2 + rij[:,:,1]**2 + rij[:,:,2]**2 - pi**2)                                                                                       # r_p from eq. 13 of Serra et al. 2011 (in units of m)
 
     zlplus1 = (0.5* np.add.outer(1/np.sqrt(1+zi), 1/np.sqrt(1+zi)))**(-2)                                                                                       # z_l + 1, with z_l satisfying r_l = (r_1 + r_2)/2
     Rp = rp/zlplus1                                                                                                                                             # R_p from Serra et al. 2011 (in units of m)
-    Pi = pi_v/zlplus1                                                                                                                                           # Pi  from Serra et al. 2011 (in units of m/s)
+    Pi = pi/zlplus1 * H0*km/Mpc                                                                                                                               # Pi  from Serra et al. 2011 (in units of m/s)
 
     di = np.diag_indices(N)                             # diagonal indices of N by N square matrix
     Rp[di] = 1                                          # arbitrarily set diagonal of Rp as 1, because its value is 0.
@@ -135,7 +133,7 @@ def hier_clustering(gal_ra, gal_dec, gal_v, threshold="ALS", gal_m=1e12, mask=No
         sigma[i] = np.std(gal_v[leaves[node-N]])
 
 
-    hist, bins = np.histogram(sigma, bins='auto')                   # apply bins to get the mode
+    hist, bins = np.histogram(sigma, bins=int(np.sqrt(N)))                   # apply bins to get the mode
     sig_pl = (bins[np.argmax(hist)] + bins[np.argmax(hist)+1])/2    # mode of the velocity dispersions
 
     # find where to cut the binary tree
