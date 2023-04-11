@@ -1,5 +1,5 @@
 # This class is for applying caustic method as presented by Diaferio 1999 and Serra et al. 2011.
-# When a list of galaxy data containing RA, Dec, and l.o.s. velocity is given, this clas calculates the caustic line and determines the membership of each galaxy.
+# When a list of galaxy data containing RA, Dec, and l.o.s. velocity is given, this class calculates the caustic line and determines the membership of each galaxy.
 
 # Code written by Woo Seok Kang, Astronomy Program, Dept. of Physics and Astronomy, Seoul National University (SNU)
 # with help from members of Exgalcos team, SNU.
@@ -28,6 +28,7 @@ class Caustics:
     fpath           : str,      file path of data
     v_lower         : float,    lower limit of l.o.s. velocity that member galaxies should have (in units of km/s) 
     v_upper         : float,    upper limit of l.o.s. velocity that member galaxies should have (in units of km/s)
+    v_max           : float,    maximum l.o.s. velocity from the cluster center when drawing the redshift diagram (in units of km/s)
     r_max           : float,    maximum projected distance that member galaxies should have (in units of Mpc)
     center_given    : bool,     whether RA, Dec, l.o.s. velocity is given for the cluster center at the first line of the data file; default value False
     H0              : float,    current value of Hubble parameter (in units of km/s); default value 100
@@ -75,10 +76,12 @@ class Caustics:
 
     c = 299792.458                              # speed of light in km/s
 
-    def __init__(self, fpath, v_lower, v_upper, r_max, center_given=False, H0=100, Om0=0.3, Ode0=0.7, Tcmb0=2.7, q=25, r_res=100, v_res=100, BT_thr="ALS", gal_m=1e12, h_c = None, kappa=None, alpha=1, grad_limit=2, display_log=True):
+    def __init__(self, fpath, v_lower, v_upper, v_max, r_max, center_given=False, H0=100, Om0=0.3, Ode0=0.7, Tcmb0=2.7, q=25, r_res=100, v_res=100, BT_thr="ALS", gal_m=1e12, h_c = None, kappa=None, alpha=1, grad_limit=2, display_log=True):
         self.fpath = fpath                      # str,      file path of data
         self.v_lower = v_lower                  # float,    lower limit of l.o.s. velocity that member galaxies should have (in units of km/s)
         self.v_upper = v_upper                  # float,    upper limit of l.o.s. velocity that member galaxies should have (in units of km/s)
+        self.v_max = v_max                      # float,    maximum l.o.s. velocity from the cluster center when drawing the redshift diagram (in units of km/s)
+        self.v_min = -v_max                     # float,    minimum l.o.s. velocity from the cluster center when drawing the redshift diagram (in units of km/s)
         self.r_max = r_max                      # float,    maximum projected distance that member galaxies should have (in units of Mpc)
         self.center_given = center_given        # bool,     whether RA, Dec, l.o.s. velocity is given for the cluster center at the first line of the data file; default value False
         self.H0 = H0                            # float,    current value of Hubble parameter (in units of km/s); default value 100
@@ -96,15 +99,48 @@ class Caustics:
         self.grad_limit = grad_limit            # float,    maximum value of d ln(A) / d ln(r) permitted (see Section 4.3, Serra et al. 2011); default value 2
         self.display_log = display_log          # bool,     prints the log; default value True
         
+        # Declare other class attributes
+        self.BT_mainbranch = None
+        self.BT_sigma = None
+        self.BT_cut_idx = None
+        self.cand_mem_idx = None
+        
+        self.r_min = 0                          # minimum of r should be, obviously, 0
+        self.r_grid = None
+        self.v_grid = None
+        self.contours = None
+        self.N = None
+        self.cl_ra = None
+        self.cl_dec = None
+        self.cl_v = None
+        self.d_A = None
+        self.gal_ra = None
+        self.gal_dec = None
+        self.gal_v = None
+        
+        self.R = None
+        self.vvar = None
+        
+        self.r = None
+        self.v = None
+        self.r_cutoff_idx = None
+        self.v_cutoff_idx = None
+        self.rv_mask = None
+        
+        self.den = None
+        self.A = None
+        self.member = None
+        self.full_member = None
+        
+
     def run(self):
         self.unpack_data()                                                  # unpack data from given inputs
 
         x_data = self.r*self.H0                                             # rescaled data points in r-axis (in units of km/s)
         y_data = self.v/self.q                                              # rescaled data points in v-axis (in units of km/s)
 
-        self.r_min = 0                                                      # minimum of r should be, obviously, 0
-        r_grid = np.linspace(self.r_min, self.r_max, self.r_res)            # grid of r-axis on the redshift diagram
-        v_grid = np.linspace(self.v_min, self.v_max, self.v_res)            # grid of v-axis on the redshift diagram
+        r_grid = np.linspace( self.r_min, self.r_max, self.r_res)            # grid of r-axis on the redshift diagram
+        v_grid = np.linspace(-self.v_max, self.v_max, self.v_res)            # grid of v-axis on the redshift diagram
 
         x_grid = r_grid*self.H0                                             # grid of rescaled r-axis (in units of km/s)
         y_grid = v_grid/self.q                                              # grid of rescaled v-axis (in units of km/s)
@@ -126,7 +162,7 @@ class Caustics:
             # minimize S(k) to get optimal kappa value
             if self.display_log == True:
                 print("Minimizing S(k) to find kappa.")
-            self.kappa = self.minimize_fn(fn, a, b, positive = True)                                             # kappa that minimizes fn (= S(k))
+            self.kappa = self.find_kappa(r_grid, v_grid, den)
             if self.display_log == True:
                 print("kappa found. kappa =  {:.5e}, S(k) = {:.5e}.".format(self.kappa, fn(self.kappa)))
                 print("")
@@ -138,6 +174,7 @@ class Caustics:
         if self.display_log == True:
             print("Drawing caustic lines.")
         A = self.calculate_A(self.kappa, den, r_grid, v_grid)                    # calculate the final amplitude of caustic lines
+        self.contours = skimage.measure.find_contours(den, self.kappa)
         if self.display_log == True:
             print("Caustic line calculation done.\n")
 
@@ -215,7 +252,7 @@ class Caustics:
         v_cutoff_idx = (gal_v > self.v_lower) & (gal_v < self.v_upper)                  # numpy array where values are 1 for galaxies within the l.o.s. velocity limit and 0 for galaxies outside the l.o.s. velocity limit
 
         # shortlist candidate members using hierarchical clustering
-        cand_mem_idx = hier_clustering(gal_ra, gal_dec, gal_v, mask=v_cutoff_idx)             # indices of candidate members, calculated from hierarchical clustering; see Appendix A, Diaferio 1999 and Section 4, Serra et al. 2011
+        cand_mem_idx, mainbranch, BT_sigma, BT_cut_idx = hier_clustering(gal_ra, gal_dec, gal_v, mask=v_cutoff_idx)             # indices of candidate members, calculated from hierarchical clustering; see Appendix A, Diaferio 1999 and Section 4, Serra et al. 2011
         
         if self.display_log == True:
             print("Hierarchical clustering done.")
@@ -239,12 +276,12 @@ class Caustics:
         r = (np.sin(angle)*d_A).to(astropy.units.Mpc).value                                                                         # projected distance from cluster center to each galaxy (in Mpc)
         v = (gal_v - cl_v)/(1+cl_z)                                                                                                 # relative l.o.s velocity with regard to cluster center
 
-        vvar = np.var(v[cand_mem_idx], ddof=1)      # variance of v calculated from candidate members (in units of (km/s)**2); later to be used for function S(k)
         R = np.average(r[cand_mem_idx])             # average projected distance from the center of the cluster to candidate member galaxies (in units of Mpc); later to be used for function S(k)
+        vvar = np.var(v[(cand_mem_idx) & (r < R)])      # variance of v calculated from candidate members (in units of (km/s)**2); later to be used for function S(k)
 
         if self.display_log == True:
-            print("Velocity Dispersion : {:4.5f} km/s".format(np.sqrt(vvar)))
             print("Mean distance       : {:4.5f} Mpc".format(R))
+            print("Velocity Dispersion : {:4.5f} km/s".format(np.std(v[cand_mem_idx])))
 
         # apply projected distance cutoff
         r_cutoff_idx = (r < self.r_max)                                                 # numpy array where values are 1 for galaxies within r_max and 0 for galaxies outside r_max
@@ -252,10 +289,6 @@ class Caustics:
         r = r[v_cutoff_idx & r_cutoff_idx]                                              # apply cutoff to projected distance from the cluster center to each galaxy
         v = v[v_cutoff_idx & r_cutoff_idx]                                              # apply cutoff to relative l.o.s. velocity
         
-        v_min = self.v_lower - cl_v                                                     # lower bound of relative l.o.s. velocity (in units of km/s); to be used for v_grid
-        v_max = self.v_upper - cl_v                                                     # upper bound of relative l.o.s. velocity (in units of km/s); to be used for v_grid
-
-
         # set local varibales to class attribute
         self.N = N
         self.cl_ra = cl_ra
@@ -270,9 +303,6 @@ class Caustics:
         self.r = r
         self.v = v
 
-        self.v_min = v_min
-        self.v_max = v_max
-
         self.vvar = vvar
         self.R = R
 
@@ -280,6 +310,10 @@ class Caustics:
         self.cand_mem_idx = cand_mem_idx
         self.r_cutoff_idx = r_cutoff_idx
         self.rv_mask = v_cutoff_idx & r_cutoff_idx
+        
+        self.BT_mainbranch = mainbranch
+        self.BT_sigma = BT_sigma
+        self.BT_cut_idx = BT_cut_idx
 
         if self.display_log == True:
             print("Number of galaxies in velocity and r_max limit : {}".format(r.size))
@@ -344,7 +378,6 @@ class Caustics:
         X, Y = np.meshgrid(ra_grid, dec_grid)                                                   # mesh grid
         den = self.fq(X, Y, cand_gal_ra, cand_gal_dec, self.triweight, h)                       # estimated number density at each point (X, Y)
         max_dec_idx, max_ra_idx = np.unravel_index(np.argmax(den, axis=None), den.shape)        # index of RA grid and Dec grid where the number density is maximum
-        #max_dec_idx, max_ra_idx = np.where(den == den.max())
         cl_ra = ra_grid[max_ra_idx]                                                             # RA  of cluster center
         cl_dec = dec_grid[max_dec_idx]                                                          # Dec of cluster center
 
@@ -371,31 +404,118 @@ class Caustics:
 
 
         # For adaptive kernel density estimation, we need to calculate various bandwidth factors.
-        N = x_data.size                                                                                                                                         # number of data points
-        h_opt = 6.24/(N**(1/6)) * np.sqrt((np.std(x_data, ddof=1)**2 + np.std(y_data,ddof=1)**2)/2)                                              # eq. 20 from Serra et al. 2011
+        N = x_data.size                                                                                                 # number of data points
+        h_opt = 6.24/(N**(1/6)) * np.sqrt((np.std(x_data)**2 + np.std(y_data)**2)/2)                                    # eq. 20 from Serra et al. 2011
         
-        gamma = 10**(np.sum(np.log10(self.fq(x_data_mirrored, y_data_mirrored, x_data_mirrored, y_data_mirrored, self.triweight, h_opt)))/(2*N))      # gamma  defined in Diaferio 1999, between eq. 17 and eq. 18; Here, the term is divided by 2*N because N is the number of original (i.e. un-mirrored) data points
-        lam = (gamma/self.fq(x_data_mirrored, y_data_mirrored, x_data_mirrored, y_data_mirrored, self.triweight, h_opt))**0.5                                   # lambda defined in Diaferio 1999, between eq. 17 and eq. 18
+        gamma = 10**(np.sum(np.log10(self.fq(x_data, y_data, x_data, y_data, self.triweight, h_opt)))/N)                # gamma  defined in Diaferio 1999, between eq. 17 and eq. 18; Here, the term is divided by 2*N because N is the number of original (i.e. un-mirrored) data points
+        lam = np.sqrt(gamma/self.fq(x_data, y_data, x_data, y_data, self.triweight, h_opt))                             # lambda defined in Diaferio 1999, between eq. 17 and eq. 18
 
-        fn = lambda h_c: self.M_0(h_c, h_opt, lam, x_data_mirrored, y_data_mirrored)                                                                            # M_0 function defined in eq. 18 from Diaferio 1999; Here we used the lambda function to fix input arguments other than h_c.
+        fn = lambda h_c: self.M_0(h_c, h_opt, lam, x_data, y_data)                                                      # M_0 function defined in eq. 18 from Diaferio 1999; Here we used the lambda function to fix input arguments other than h_c.
         if self.h_c is None:
             if self.display_log == True:
                 print("Calculating h_c.")
-            self.h_c = self.minimize_fn(fn, 0.005, 2, positive=True)                                                                                                     # find h_c that minimizes M_0
+            self.h_c = self.find_hc(h_opt=h_opt, lam=lam, x_data=x_data, y_data=y_data)                                 # find h_c that minimizes M_0
             if self.display_log == True:
                 print("h_c = {:.5e}".format(self.h_c))
         else:
             if self.display_log == True:
                 print("User-given h_c = {:.5e}".format(self.h_c))
-        h_c = self.h_c*self.alpha
+        self.h_c = self.h_c*self.alpha
         if self.display_log == True:
-            print("final value of h_c = {:.5e}".format(h_c))
+            print("final value of h_c = {:.5e}".format(self.h_c))
 
         
-        h = h_c * h_opt * lam                                                                                                                                   # final h_i (local smoothing length); size of h_i is same as x_data and y_data
+        h = self.h_c * h_opt * lam                                                                                      # final h_i (local smoothing length); size of h_i is same as x_data and y_data
 
-        return lambda x, y: self.fq(x, y, x_data_mirrored, y_data_mirrored, self.triweight, h)                                                                  # return value: function that returns the number density on redshift diagram at given point (x, y). 
+        return lambda x, y: self.fq(x, y, x_data, y_data, self.triweight, h)                                            # return value: function that returns the number density on redshift diagram at given point (x, y). 
         
+    def find_hc(self, h_opt, lam, x_data, y_data):
+        
+        '''
+        Finds optimal h_cc value for kernel bandwidth used in kernel density estimation.
+        Follows the same procedure as CausticApp,
+        i.e., starts from hc=0.005 and increments by 0.01 at each step.
+        M_0 will decrease at first, and then at some point start to increase.
+        hc is incremented until M_0 increases from the previous step.
+        The final kappa is determined by locating the minimum of the parabola determined by the 
+        last three points.
+
+        Parameters
+        -----------------------------
+        h_opt       : float,            h_opt calculated as in Eq. 17, Diaferio (1999).
+        lam         : float,            lambda calculated as in Diaferio (1999) (below Eq. 17).
+        x_data      : numpy ndarray,    1D array containing rescaled r values of galaxies
+        y_data      : numpy ndarray,    1D array containing rescaled r values of galaxies
+
+        Returns
+        -----------------------------
+        Optimal h_c
+        '''
+        
+        init_guess = 0.005
+        step_size = 0.01
+        max_guess = 155
+        
+        hc_0 = init_guess
+        hc_1 = hc_0 + step_size
+        M0_0 = self.M_0(h_c=hc_0, h_opt=h_opt, lam=lam, x_data=x_data, y_data=y_data)
+        M0_1 = self.M_0(h_c=hc_1, h_opt=h_opt, lam=lam, x_data=x_data, y_data=y_data)
+        if(self.display_log):
+            print("Iteration   1, hc = {:.7f}: M_0 = {:.7e}".format(hc_0, M0_0))
+            print("Iteration   2, hc = {:.7f}: M_0 = {:.7e}".format(hc_1, M0_1))
+        
+        i = 2
+        while(i < max_guess):
+            hc_2 = hc_1 + step_size
+            M0_2 = self.M_0(h_c=hc_2, h_opt=h_opt, lam=lam, x_data=x_data, y_data=y_data)
+            
+            if(self.display_log):
+                print("Iteration {:3}, hc = {:.7f}: M_0 = {:.7e}".format(i+1, hc_2, M0_2))
+            
+            if (M0_2 > M0_1):
+                # Find minimum by parabolic 
+                h_c = self.parabola_min(hc_0, hc_1, hc_2, M0_0, M0_1, M0_2)
+                
+                if(self.display_log):
+                    print("Optimal h_c: {}".format(h_c))
+                
+                return h_c
+                
+            else:
+                i += 1
+                hc_0 = hc_1
+                hc_1 = hc_2
+                M0_0 = M0_1
+                M0_1 = M0_2
+        
+        raise Exception("Failed to find optimal kernel size hc.")
+
+    def parabola_min(self, x0, x1, x2, y0, y1, y2):
+        
+        '''
+        Finds the minimum point of the parabola that passes three points (x0, y0), (x1, y1), and (x2, y2)
+        
+        Parameters
+        -----------------------------------
+        x0  : float,    x coordinate of first  point
+        x1  : float,    x coordinate of second point
+        x2  : float,    x coordiante of third  point
+        y0  : float,    y coordinate of first  point
+        y1  : float,    y coordinate of second point
+        y2  : float,    y coordiante of third  point
+
+        Returns
+        ----------------------------------
+        x coordinate of the minimum point of the parabola
+
+        '''
+        
+        k0 = y0 / ((x0 - x1)*(x0 - x2))
+        k1 = y1 / ((x1 - x0)*(x1 - x2))
+        k2 = y2 / ((x2 - x0)*(x2 - x1))
+        
+        xmin = (k0*(x1 + x2) + k1*(x0 + x2) + k2*(x0 + x1)) / (2*(k0+k1+k2))
+        return xmin
 
     def M_0(self, h_c, h_opt, lam, x_data, y_data):
 
@@ -426,8 +546,8 @@ class Caustics:
         y_min = np.min(y_data - h)                     # minimum value in the y_grid
         y_max = np.max(y_data + h)                     # maximum value in the y_grid
         
-        x_res = 50                                          # resolution of x_grid
-        y_res = 50                                          # resolution of y_grid
+        x_res = self.r_res                             # resolution of x_grid
+        y_res = self.v_res                             # resolution of y_grid
 
         x_grid = np.linspace(x_min, x_max, x_res)      # grid along rescaled r-axis (x-axis) used for numerical integration
         y_grid = np.linspace(y_min, y_max, y_res)      # grid along rescaled v-axis (y-axis) used for numerical integration
@@ -436,15 +556,22 @@ class Caustics:
         
         f_squared = self.fq(X, Y, x_data, y_data, self.triweight, h)**2                         # squared value of fq calcuated at each point (X, Y)
 
-        term_1 = np.trapz(np.trapz(f_squared, x = y_grid, axis = 0), x = x_grid)      # first term of M_0 is the integration of fq squared
+        term_1 = np.trapz(np.trapz(f_squared, x=y_grid, axis=0), x=x_grid)                      # first term of M_0 is the integration of fq squared
         
         # calculating the second term (refer to eq. 3.37 and Section 5.3.4 of Silverman B. W., 1986, Density Estimation for Statistics and Data Analysis, Chapman & Hall, London)
-        x_pairs = np.subtract.outer(x_data, x_data)                    # 2D array of size (N, N); element (i, j) is x_data[i]-x_data[j] i.e. pair-wise subtraction of x_data and x_data
-        y_pairs = np.subtract.outer(y_data, y_data)                    # 2D array of size (N, N); element (i, j) is y_data[i]-y_data[j] i.e. pair-wise subtraction of y_data and y_data
-        a = np.sum(self.triweight(x_pairs/h, y_pairs/h) / (h**2))      # sum of fq evaluated at all data points (x, y)
-        b = self.triweight(0, 0) * np.sum(1/(h**2))
-        term_2 = 2/(N*(N - 1)) * (a - b)
+        # x_pairs = np.subtract.outer(x_data, x_data)                    # 2D array of size (N, N); element (i, j) is x_data[i]-x_data[j] i.e. pair-wise subtraction of x_data and x_data
+        # y_pairs = np.subtract.outer(y_data, y_data)                    # 2D array of size (N, N); element (i, j) is y_data[i]-y_data[j] i.e. pair-wise subtraction of y_data and y_data
+        # a = np.sum(self.triweight(x_pairs/h, y_pairs/h) / (h**2))      # sum of fq evaluated at all data points (x, y)
+        # b = self.triweight(0, 0) * np.sum(1/(h**2))
+        # term_2 = 2/(N*(N - 1)) * (a - b)
 
+        term_2 = 0
+        for i in range(N):
+            mask = np.ones(N, dtype=bool)
+            mask[i] = False
+            term_2 += self.fq(x=x_data[i], y=y_data[i], x_data=x_data[mask], y_data=y_data[mask], K=self.triweight, h=h[mask])
+        term_2 *= 2/N
+        
         return term_1 - term_2                                              # return value: M_0 function evaluated for given h_c
 
     def triweight(self, x, y):
@@ -489,7 +616,15 @@ class Caustics:
         x_pairs = np.subtract.outer(x, x_data)                              # (M+N)-D array, where M is the dimension of x and N is the dimension of x_data; pair-wise subtraction of x and x_data
         y_pairs = np.subtract.outer(y, y_data)                              # (M+N)-D array, where M is the dimension of y and N is the dimension of y_data; pair-wise subtraction of y and y_data
         
-        return np.sum(K(x_pairs/h, y_pairs/h)/(h**2), axis = -1) / N        # return value: estimated number density value at given point (x, y); Summation must be done for x_data and y_data. Because the the dimension of x and y may vary, axis=-1 is used.
+        x_data_mirrored = np.concatenate([x_data, -x_data])
+        y_data_mirrored = np.concatenate([y_data,  y_data])
+        if np.size(h) != 1:
+            h = np.concatenate([h, h])
+        
+        x_pairs = np.subtract.outer(x, x_data_mirrored)                              # (M+N)-D array, where M is the dimension of x and N is the dimension of x_data; pair-wise subtraction of x and x_data
+        y_pairs = np.subtract.outer(y, y_data_mirrored)                              # (M+N)-D array, where M is the dimension of y and N is the dimension of y_data; pair-wise subtraction of y and y_data
+        
+        return np.sum(K(x_pairs/h, y_pairs/h)/(h**2), axis = -1) / (2*N)        # return value: estimated number density value at given point (x, y); Summation must be done for x_data and y_data. Because the the dimension of x and y may vary, axis=-1 is used.
 
     def S(self, kappa, r_grid, v_grid, r_res, den, R, vvar):
 
@@ -523,7 +658,57 @@ class Caustics:
         v_esc_mean_squared = np.trapz((A[r_grid < R]**2) * phi[r_grid < R], x = r_grid[r_grid < R]) / np.trapz(phi[r_grid < R], x = r_grid[r_grid < R])       # mean squared escape velocity
         
         v_mean_squared = vvar                                                   # mean squared velocity (calculated in advance from candidate member galxies)
+        print("kappa = {:.6e}: v^2 = {:.6e}, v_esc^2 = {:.6e}".format(kappa, np.sqrt(v_mean_squared), np.sqrt(v_esc_mean_squared)))
         return abs(v_esc_mean_squared - 4*v_mean_squared)                       # return value: absolute value of the difference of mean sqaured escape velocity and mean squared velocity
+
+    def find_kappa(self, r_grid, v_grid, den):
+        
+        '''
+        Finds optimal kappa value for threshold by minimizing S(kappa).
+        Follows the same procedure as CausticApp,
+        i.e., starts from kappa=0 and increments kappa linearly.
+        S(kappa) will decrease at first, and then at some point start to increase.
+        kappa is incremented until S(kappa) increases from the previous step.
+        The final kappa is determined by locating the minimum of the parabola determined by the 
+        last three points.
+
+        Parameters
+        -----------------------------
+        r_grid      : numpy ndarray, grid along r-axis (1D array)
+        v_grid      : numpy ndarray, grid along v-axis (1D array)
+        den         : numpy ndarray, number density of galaxies in the redshift space (2D array)
+
+        Returns
+        -----------------------------
+        Optimal kappa
+        '''
+        
+        fn = lambda kappa: self.S(kappa, r_grid, v_grid, self.r_res, den, self.R, self.vvar)
+        k_min = 0
+        k_max = den.max()
+        nstep = 51
+        step_size = (k_max - k_min) / nstep
+        
+        k0 = k_min
+        k1 = k0 + step_size
+        S0 = fn(k0)
+        S1 = fn(k1)
+        
+        i = 2
+        while(i < nstep):
+            k2 = k1 + step_size
+            S2 = fn(k2)
+            
+            if S2 > S1:
+                k = self.parabola_min(k0, k1, k2, S0, S1, S2)
+                return k
+            
+            else:
+                k0 = k1
+                k1 = k2
+                S0 = S1
+                S1 = S2
+                i += 1
 
     def calculate_A(self, kappa, den, r_grid, v_grid):
 
@@ -532,7 +717,7 @@ class Caustics:
 
         Parameters
         --------------------------------------
-        kappa   : float,            level at which the 
+        kappa   : float,            level at which the contour is drawn
         den     : numpy ndarray,    2D array of estimated number density calculated for r_grid and v_grid
         r_grid  : numpy ndarray,    grid along the r-axis
         v_grid  : numpy ndarray,    grid along the v-axis
@@ -644,6 +829,7 @@ class Caustics:
         -----------------------------
         Value that minimizes fn.
         '''
+        
         if self.display_log == True:
             print("search range: {} ~ {}".format(a, b))
         

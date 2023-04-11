@@ -133,7 +133,7 @@ def hier_clustering(gal_ra, gal_dec, gal_v, threshold="ALS", gal_m=1e12, mask=No
         sigma[i] = np.std(gal_v[leaves[node-N]])
 
 
-    hist, bins = np.histogram(sigma, bins=int(np.sqrt(N)))                   # apply bins to get the mode
+    hist, bins = np.histogram(sigma, bins='auto')                   # apply bins to get the mode
     sig_pl = (bins[np.argmax(hist)] + bins[np.argmax(hist)+1])/2    # mode of the velocity dispersions
 
     # find where to cut the binary tree
@@ -150,7 +150,7 @@ def hier_clustering(gal_ra, gal_dec, gal_v, threshold="ALS", gal_m=1e12, mask=No
     total_cand_mem = np.zeros(N_total).astype(bool)
     total_cand_mem[mask] = cand_mem
     
-    return total_cand_mem
+    return total_cand_mem, mainbranch, sigma, cut_idx
 
 def ADcut(mainbranch, count_leaf, N, Z, sigma, sig_pl, f=0.1):
     thresholds = np.asarray([0])
