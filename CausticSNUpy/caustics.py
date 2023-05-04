@@ -658,7 +658,7 @@ class Caustics:
         v_esc_mean_squared = np.trapz((A[r_grid < R]**2) * phi[r_grid < R], x = r_grid[r_grid < R]) / np.trapz(phi[r_grid < R], x = r_grid[r_grid < R])       # mean squared escape velocity
         
         v_mean_squared = vvar                                                   # mean squared velocity (calculated in advance from candidate member galxies)
-        print("kappa = {:.6e}: v^2 = {:.6e}, v_esc^2 = {:.6e}".format(kappa, np.sqrt(v_mean_squared), np.sqrt(v_esc_mean_squared)))
+        print("kappa = {:.6e}: v^2 = {:.6e}, v_esc^2 = {:.6e}, S = {:.6e}".format(kappa, np.sqrt(v_mean_squared), np.sqrt(v_esc_mean_squared), abs(v_esc_mean_squared - 4*v_mean_squared)))
         return abs(v_esc_mean_squared - 4*v_mean_squared)                       # return value: absolute value of the difference of mean sqaured escape velocity and mean squared velocity
 
     def find_kappa(self, r_grid, v_grid, den):
@@ -749,12 +749,66 @@ class Caustics:
             int_idx = (r_cont == r_cont.astype(int))                            # The indices given by skimage.measure includes 'float' indices, which are interpolated values. We only need interger indices along the r_grid.
             r_cont_grid = r_cont[int_idx].astype(int)                           # indices of the contour line on r_grid, using only integer indices along the r_grid
             v_cont_grid = v_cont[int_idx]                                       # indices of the contour line on v_grid, using only integer indices along the r_grid (v_grid indices need not be integers)
-            for r_idx, v_idx in zip(r_cont_grid, v_cont_grid):                  # for coordinate indices (r_idx, v_idx) on the contour line
-                v = v_idx*v_step + v_grid.min()                                 # v value on the v_grid corresponding to v_idx
-                if check_sign and negative and (v >= 0):                        # 1) If we need to check the sign change of v (i.e., the contour is non-looping), 2) if the contour started from negative v, and 3) if the current v value is positive, then we have found where the contour line crosses v = 0. 
-                    zero_idx = r_idx+1                                          # In this case, all values of A should be 0 from r_idx + 1.
-                    negative = False                                            # And as the v value has became positive, set negative to False.
-                A[r_idx] = min(A[r_idx], abs(v))                                # Caustic line amplitude is the minimum value of abs(v) for given r.
+
+            '''
+* Note on algorithm *
+We take the minimum abs(v) value (for a given r) as the caustic amplitude.
+There may be several isolated contour lines for a single level kappa.
+
+If the contour is on only the positive or negative v half-plane
+    (i.e., the contour does not cross v=0), we just update A(r) with the minimum
+    value of abs(v) for given r. No subtleties here.
+
+If the contour crosses v=0 line, we separate the case where the contour is below
+    v=0 and above v=0. 
+    For each case, we start from r=0 and follow the contour line in increasing r.
+    If A(r) is greater than the abs(v) for the current r, we update A(r) with 
+    abs(v).
+    
+    The contour may retrograde (i.e., r may decrease at some point, and then
+    increase again).
+    In this case, we skip the retrograding section of the contour and move to
+    the next increasing r value.
+    
+These measures seemed necessary to be consistent with Caustic App.
+
+            '''
+
+            r_idx_max = 0
+            r_idx_0 = 0
+            if np.sign(v_cont[0]*v_step + v_grid.min()) == np.sign(v_cont[-1]*v_step + v_grid.min()):   # the contour is only on one side of v=0
+                for r_idx, v_idx in zip(r_cont_grid, v_cont_grid):              # for coordinate indices (r_idx, v_idx) on the contour line
+                    v = v_idx*v_step + v_grid.min()                             # v value on the v_grid corresponding to v_idx
+                    if check_sign and negative and (v >= 0):                    # 1) If we need to check the sign change of v (i.e., the contour is non-looping), 2) if the contour started from negative v, and 3) if the current v value is positive, then we have found where the contour line crosses v = 0. 
+                        zero_idx = r_idx+1                                      # In this case, all values of A should be 0 from r_idx + 1.
+                        negative = False                                        # And as the v value has became positive, set negative to False.
+                    
+                    A[r_idx] = min(A[r_idx], abs(v))                            # Caustic line amplitude is the minimum value of abs(v) for given r.
+            
+            elif negative:
+                for idx in range(len(r_cont_grid)):
+                    r_idx = r_cont_grid[idx]
+                    v_idx = v_cont_grid[idx]
+                    v = v_idx*v_step + v_grid.min()                             # v value on the v_grid corresponding to v_idx
+                    if check_sign and negative and (v >= 0):                    # 1) If we need to check the sign change of v (i.e., the contour is non-looping), 2) if the contour started from negative v, and 3) if the current v value is positive, then we have found where the contour line crosses v = 0. 
+                        zero_idx = r_idx+1                                      # In this case, all values of A should be 0 from r_idx + 1.
+                        negative = False
+                        r_idx_0 = r_idx                                         # r index where the contour crosses v=0
+                        r_idx_max = 0                                           # reset maximum r index
+                        break                                                   # we now need to start from the upper contour
+                       
+                    if negative & (r_idx >= r_idx_max):
+                        A[r_idx] = min(A[r_idx], abs(v))                        # Caustic line amplitude is the minimum value of abs(v) for given r.
+                        r_idx_max = r_idx                                       # update maximum r index
+        
+                for idx in range(len(r_cont_grid)-1, r_idx_0, -1):
+                    r_idx = r_cont_grid[idx]
+                    v_idx = v_cont_grid[idx]
+                    v = v_idx*v_step + v_grid.min()
+                    if ~negative & (r_idx >= r_idx_max):
+                        A[r_idx] = min(A[r_idx], abs(v))
+                        r_idx_max = r_idx
+                    
 
         if zero_idx != None:                                                    # zero_idx is initialized as None before the loop. Thus, if zero_idx is NOT None, then there is a point where the contour line crossed v = 0.
             A[zero_idx:] = 0                                                    # A(r) is set to 0 for r >= r_grid[zero_idx].
