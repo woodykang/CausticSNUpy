@@ -686,7 +686,7 @@ class Caustics:
         fn = lambda kappa: self.S(kappa, r_grid, v_grid, self.r_res, den, self.R, self.vvar)
         k_min = 0
         k_max = den.max()
-        nstep = 51
+        nstep = 101
         step_size = (k_max - k_min) / nstep
         
         k0 = k_min
@@ -840,7 +840,7 @@ These measures seemed necessary to be consistent with Caustic App.
                 continue
             
             else:
-                log_grad = (np.log(A[i+1])-np.log(A[i])) / (np.log(r[i+1]) - np.log(r[i]))          # gradient of the current A
+                log_grad = r[i]/A[i] * (A[i+1]-A[i])/(r[i+1]-r[i])                                  # gradient of the current A
                 if log_grad > grad_limit:
                     A[i+1] = np.exp( np.log(A[i]) + new_grad*(np.log(r[i+1]) - np.log(r[i])) )      # new value of A[i+1]
                 
