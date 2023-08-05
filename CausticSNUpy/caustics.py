@@ -1,7 +1,7 @@
 # This class is for applying caustic method as presented by Diaferio 1999 and Serra et al. 2011.
 # When a list of galaxy data containing RA, Dec, and l.o.s. velocity is given, this class calculates the caustic line and determines the membership of each galaxy.
 
-# Code written by Woo Seok Kang, Astronomy Program, Dept. of Physics and Astronomy, Seoul National University (SNU)
+# Code written by Wooseok Kang, Astronomy Program, Dept. of Physics and Astronomy, Seoul National University (SNU)
 # with help from members of Exgalcos team, SNU.
 # If you have any questions or comments, contact woodykang@snu.ac.kr
 
@@ -63,6 +63,7 @@ class Caustics:
     cl_v                : float,            radial velocity of cluster center (in units of km/s); if center_given == True, it is same as the value given in the input file
     R                   : float,            mean projected distance from the cluster center to candidate member galaxies (in units of Mpc)
     vvar                : float,            variance of relative l.o.s. velocity of candidate member galaxies (in units of (km/s)^2)
+    vdisp               : float,            velocity dispersion of candidate member galaxies (in units of km/s)
 
     Note
     ---------------------------
@@ -120,6 +121,7 @@ class Caustics:
         
         self.R = None
         self.vvar = None
+        self.vdisp = None
         
         self.r = None
         self.v = None
@@ -259,29 +261,47 @@ class Caustics:
         if self.display_log == True:
             print("Number of candidate members : {}".format(sum(cand_mem_idx)))
 
+
+        cl_ra_cand, cl_dec_cand, cl_v_cand = self.find_cluster_center(gal_ra, gal_dec, gal_v, cand_mem_idx)            # calculate using the candidate members; see Section 4.3, Serra et al. 2011
+        cl_z_cand = cl_v_cand / self.c
+        if self.display_log == True:
+            print("Cluster center found in this code: RA = {:4.5f} deg, Dec = {:4.5f} deg, v = {:6f} km/s, z = {:6f}".format(cl_ra_cand, cl_dec_cand, cl_v_cand, cl_z_cand))
+
         if not self.center_given:                                                                       # if coordinates of the cluster center is not given by the user, 
-            cl_ra, cl_dec, cl_v = self.find_cluster_center(gal_ra, gal_dec, gal_v, cand_mem_idx)        # calculate it using the candidate members; see Section 4.3, Serra et al. 2011
+            cl_ra  = cl_ra_cand
+            cl_dec = cl_dec_cand
+            cl_v   = cl_v_cand
+            cl_z   = cl_z_cand
+
             if self.display_log == True:
-                print("Cluster center : RA = {:4.5f} deg, Dec =  {:4.5f} deg, v = {:6f} km/s".format(cl_ra, cl_dec, cl_v))
+                print("Using cluster center calculated here.")
+
         else:
             cl_ra, cl_dec, cl_v = cluster_data[1:]
+            cl_z = cl_v / self.c
+            if self.display_log == True:
+                print("Using cluster center given by user.")
+                print("Cluster center: RA = {:4.5f} deg, Dec = {:4.5f} deg, v = {:6f} km/s, z = {:6f}".format(cl_ra, cl_dec, cl_v, cl_z))
+
+        vdisp = np.std(v[cand_mem_idx], ddof=1)                         # velocity dispersion of candidate member galaxies (in units of km/s); not used in this code, but just to print out
+        if self.display_log == True:
+            print("Velocity dispersion of candidate members: {:4f} km/s".format(vdisp))
+        
         
         # calculate projected distance and radial velocity
         LCDM = astropy.cosmology.LambdaCDM(self.H0, self.Om0, self.Ode0, self.Tcmb0)                    # Lambda CDM model with the given parameters
         
-        cl_z = cl_v/self.c                                                                              # redshift of the cluster center
         d_A = LCDM.angular_diameter_distance(cl_z)                                                      # angular diameter distance to the cluster center
         
         angle = astropy.coordinates.angular_separation(cl_ra*np.pi/180, cl_dec*np.pi/180, gal_ra*np.pi/180, gal_dec*np.pi/180)      # angular separation of each galaxy and cluster center
         r = (np.sin(angle)*d_A).to(astropy.units.Mpc).value                                                                         # projected distance from cluster center to each galaxy (in Mpc)
         v = (gal_v - cl_v)/(1+cl_z)                                                                                                 # relative l.o.s velocity with regard to cluster center
 
-        R = np.average(r[cand_mem_idx])             # average projected distance from the center of the cluster to candidate member galaxies (in units of Mpc); later to be used for function S(k)
-        vvar = np.var(v[(cand_mem_idx) & (r < R)])      # variance of v calculated from candidate members (in units of (km/s)**2); later to be used for function S(k)
-
+        R = np.average(r[cand_mem_idx])                                 # average projected distance from the center of the cluster to candidate member galaxies (in units of Mpc); later to be used for function S(k)
+        vvar = np.var(v[(cand_mem_idx) & (r < R)], ddof=1)              # variance of v calculated from candidate members (in units of (km/s)**2); later to be used for function S(k)
         if self.display_log == True:
-            print("Mean distance       : {:4.5f} Mpc".format(R))
-            print("Velocity Dispersion : {:4.5f} km/s".format(np.std(v[cand_mem_idx])))
+            print("Mean clustercentric distance of candidate members:             {:4.5f} Mpc".format(R))
+            print("Velocity Dispersion of candidate members within mean distance: {:4.5f} km/s".format(np.sqrt(vvar)))
 
         # apply projected distance cutoff
         r_cutoff_idx = (r < self.r_max)                                                 # numpy array where values are 1 for galaxies within r_max and 0 for galaxies outside r_max
@@ -304,6 +324,7 @@ class Caustics:
         self.v = v
 
         self.vvar = vvar
+        self.vdisp = vdisp
         self.R = R
 
         self.v_cutoff_idx = v_cutoff_idx
