@@ -282,10 +282,6 @@ class Caustics:
             if self.display_log == True:
                 print("Using cluster center given by user.")
                 print("Cluster center: RA = {:4.5f} deg, Dec = {:4.5f} deg, v = {:6f} km/s, z = {:6f}".format(cl_ra, cl_dec, cl_v, cl_z))
-
-        vdisp = np.std(v[cand_mem_idx], ddof=1)                         # velocity dispersion of candidate member galaxies (in units of km/s); not used in this code, but just to print out
-        if self.display_log == True:
-            print("Velocity dispersion of candidate members: {:4f} km/s".format(vdisp))
         
         
         # calculate projected distance and radial velocity
@@ -296,6 +292,10 @@ class Caustics:
         angle = astropy.coordinates.angular_separation(cl_ra*np.pi/180, cl_dec*np.pi/180, gal_ra*np.pi/180, gal_dec*np.pi/180)      # angular separation of each galaxy and cluster center
         r = (np.sin(angle)*d_A).to(astropy.units.Mpc).value                                                                         # projected distance from cluster center to each galaxy (in Mpc)
         v = (gal_v - cl_v)/(1+cl_z)                                                                                                 # relative l.o.s velocity with regard to cluster center
+
+        vdisp = np.std(v[cand_mem_idx], ddof=1)                         # velocity dispersion of candidate member galaxies (in units of km/s); not used in this code, but just to print out
+        if self.display_log == True:
+            print("Velocity dispersion of candidate members: {:4f} km/s".format(vdisp))
 
         R = np.average(r[cand_mem_idx])                                 # average projected distance from the center of the cluster to candidate member galaxies (in units of Mpc); later to be used for function S(k)
         vvar = np.var(v[(cand_mem_idx) & (r < R)], ddof=1)              # variance of v calculated from candidate members (in units of (km/s)**2); later to be used for function S(k)
