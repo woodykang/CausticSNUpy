@@ -178,16 +178,20 @@ def ADcut(mainbranch, count_leaf, N, Z, sigma, sig_pl, f=0.1):
 def ALScut(sigma, sig_pl):
     N03 = np.sum(np.abs(sig_pl - sigma)/sig_pl < 0.3)                               # N_0.3 described in Section 4.2 of Serra et al. 2011.
 
-    delta = 0.03                                                                    # delta ranges from 0.03 to 0.1
+    delta = 0.03
     while (delta < 0.3):
         N_del = np.sum(np.abs(sig_pl - sigma)/sig_pl < delta)                       # number of nodes with in delta range
         if N_del >= 0.8*N03:
             break
         
-        else:
-            delta += 0.01
+        elif delta < 0.1:                                                           # delta ranges from 0.03 to 0.1
+            delta += 0.01                                                           # in step size of 0.01
+        
+        else:                                                                       # however, if N_del does not reach N03 for delta in [0.03, 0.1]
+            delta += 0.001                                                          # we need to find when N_del reaches N03
 
-    if np.where(np.abs(sig_pl - sigma)/sig_pl < delta)[0].size < 5:                 # If we cannot find a plateau of large enouge size,
+    
+    if np.sum(np.abs(sig_pl - sigma)/sig_pl < delta) < 5:                           # If we cannot find a plateau of large enouge size,
         cut_idx = 0                                                                 # then we treat the first node as the cut.
     else:
         cand_cut_idx = np.where(np.abs(sig_pl - sigma)/sig_pl < delta)[0][0:5]      # candidate of cuts are the first five nodes within the delta range

@@ -265,7 +265,7 @@ class Caustics:
         cl_ra_cand, cl_dec_cand, cl_v_cand = self.find_cluster_center(gal_ra, gal_dec, gal_v, cand_mem_idx)            # calculate using the candidate members; see Section 4.3, Serra et al. 2011
         cl_z_cand = cl_v_cand / self.c
         if self.display_log == True:
-            print("Cluster center found in this code: RA = {:4.5f} deg, Dec = {:4.5f} deg, v = {:6f} km/s, z = {:6f}".format(cl_ra_cand, cl_dec_cand, cl_v_cand, cl_z_cand))
+            print("Cluster center found in this code: RA = {:4.5f} deg, Dec = {:4.5f} deg, v = {:.0f} km/s, z = {:6f}".format(cl_ra_cand, cl_dec_cand, cl_v_cand, cl_z_cand))
 
         if not self.center_given:                                                                       # if coordinates of the cluster center is not given by the user, 
             cl_ra  = cl_ra_cand
@@ -281,7 +281,7 @@ class Caustics:
             cl_z = cl_v / self.c
             if self.display_log == True:
                 print("Using cluster center given by user.")
-                print("Cluster center: RA = {:4.5f} deg, Dec = {:4.5f} deg, v = {:6f} km/s, z = {:6f}".format(cl_ra, cl_dec, cl_v, cl_z))
+                print("Cluster center: RA = {:4.5f} deg, Dec = {:4.5f} deg, v = {:.0f} km/s, z = {:6f}".format(cl_ra, cl_dec, cl_v, cl_z))
         
         
         # calculate projected distance and radial velocity
@@ -786,16 +786,10 @@ If the contour crosses v=0 line, we separate the case where the contour is below
     If A(r) is greater than the abs(v) for the current r, we update A(r) with 
     abs(v).
     
-    The contour may retrograde (i.e., r may decrease at some point, and then
-    increase again).
-    In this case, we skip the retrograding section of the contour and move to
-    the next increasing r value.
-    
 These measures seemed necessary to be consistent with Caustic App.
 
             '''
 
-            r_idx_max = 0
             r_idx_0 = 0
             if np.sign(v_cont[0]*v_step + v_grid.min()) == np.sign(v_cont[-1]*v_step + v_grid.min()):   # the contour is only on one side of v=0
                 for r_idx, v_idx in zip(r_cont_grid, v_cont_grid):              # for coordinate indices (r_idx, v_idx) on the contour line
@@ -815,20 +809,17 @@ These measures seemed necessary to be consistent with Caustic App.
                         zero_idx = r_idx+1                                      # In this case, all values of A should be 0 from r_idx + 1.
                         negative = False
                         r_idx_0 = r_idx                                         # r index where the contour crosses v=0
-                        r_idx_max = 0                                           # reset maximum r index
                         break                                                   # we now need to start from the upper contour
                        
-                    if negative & (r_idx >= r_idx_max):
+                    if negative:
                         A[r_idx] = min(A[r_idx], abs(v))                        # Caustic line amplitude is the minimum value of abs(v) for given r.
-                        r_idx_max = r_idx                                       # update maximum r index
         
                 for idx in range(len(r_cont_grid)-1, r_idx_0, -1):
                     r_idx = r_cont_grid[idx]
                     v_idx = v_cont_grid[idx]
                     v = v_idx*v_step + v_grid.min()
-                    if ~negative & (r_idx >= r_idx_max):
+                    if ~negative:
                         A[r_idx] = min(A[r_idx], abs(v))
-                        r_idx_max = r_idx
                     
 
         if zero_idx != None:                                                    # zero_idx is initialized as None before the loop. Thus, if zero_idx is NOT None, then there is a point where the contour line crossed v = 0.
