@@ -158,8 +158,6 @@ class Caustics:
         X, Y = np.meshgrid(x_grid, y_grid)                                  # mesh grid
         den = f(X, Y)*self.H0/self.q*2                                      # number density estimated at each point X, Y, normalized to be 1 when integrated along r, v axis
 
-        a = den.min()
-        b = den.max()
         fn = lambda kappa: self.S(kappa, r_grid, v_grid, self.r_res, den, self.R, self.vvar)            # lambda function is used to fix other parameters except for kappa; thus, fn is only a function of kappa and is the S(k) function described in Diaferio 1999
         if self.kappa is None:
             # minimize S(k) to get optimal kappa value
@@ -430,11 +428,6 @@ class Caustics:
         ----------------------------------
         funtion that returns the estimated number density on redshift diagram at given point (x, y). 
         '''
-
-        # Data points are mirrored to negative r (see the last two sentences from the second paragraph of Section 4.3, Serra et al. 2011).
-        x_data_mirrored = np.concatenate((x_data, -x_data))        # mirrored x_data
-        y_data_mirrored = np.concatenate((y_data,  y_data))        # mirrored y_data
-
 
         # For adaptive kernel density estimation, we need to calculate various bandwidth factors.
         N = x_data.size                                                                                                 # number of data points
