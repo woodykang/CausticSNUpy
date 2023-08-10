@@ -50,6 +50,7 @@ class Caustics:
     ---------------------------
     run                 : function,         executes the procedure; corresponds to the main program
     create_member_list  : function,         creates a txt file with column indicating membership (1 for member and 0 for interloper) appended to the original data given as input
+    cluster_center      : function,         returns the cluster center found with candidate members (RA, Dec, v) in units of (deg, deg, km/s)
     r_grid              : numpy ndarray,    grid value along the r-axis of the redshift diagram (in units of Mpc)
     v_grid              : numpy ndarray,    grid value along the v-axis of the redshift diagram (in units of km/s)
     A                   : numpy ndarray,    amplitude of the caustic line along r_grid (in units of km/s)
@@ -302,6 +303,7 @@ class Caustics:
         if self.display_log == True:
             print("Mean clustercentric distance of candidate members:             {:4.5f} Mpc".format(R))
             print("Velocity Dispersion of candidate members within mean distance: {:4.5f} km/s".format(np.sqrt(vvar)))
+            print("")
 
         # apply projected distance cutoff
         r_cutoff_idx = (r < self.r_max)                                                 # numpy array where values are 1 for galaxies within r_max and 0 for galaxies outside r_max
@@ -453,7 +455,7 @@ class Caustics:
     def find_hc(self, h_opt, lam, x_data, y_data):
         
         '''
-        Finds optimal h_cc value for kernel bandwidth used in kernel density estimation.
+        Finds optimal h_c value for kernel bandwidth used in kernel density estimation.
         Follows the same procedure as CausticApp,
         i.e., starts from hc=0.005 and increments by 0.01 at each step.
         M_0 will decrease at first, and then at some point start to increase.
@@ -966,3 +968,51 @@ These measures seemed necessary to be consistent with Caustic App.
             return self.minimize_fn(fn, a, b, positive, it)
     
         return a
+    
+    def cluster_center(self):
+        '''
+        Gives the cluster center (RA, Dec, v) found with candidate members.
+
+        Parameters
+        -----------------------------
+
+        Returns
+        -----------------------------
+        3-tuple of (RA, Dec, v) in units of (deg, deg, km/s).
+        '''
+
+        return self.find_cluster_center(self.gal_ra, self.gal_dec, self.gal_v, self.cand_mem_idx)
+
+    def velocity_dispersion(self, give_error=False, N_resamp=1000):
+        '''
+        Calculates the velocity dispersion of member galaxies.
+        If `give_error=True`, the function also calculates 1 sigma resampling error.
+        In this case, the returned value is a 2-tuple (vdisp, vdisp_error) in units of (km/s, km/s).
+        Otherwise, the returned value is simply a scalar vdisp in units of (km/s).
+        If `give_error=False`, `N_resamp` is ignored.
+
+        Parameters
+        -----------------------------
+        give_error  : bool, True if to calculate resampling error; default value False
+        N_resamp    : int,  Number of resamplings to calculate error; default value 1000
+
+        Returns
+        -----------------------------
+        Velocity dispersion of member galaxies in units of (km/s).
+        If `give_error=True`, the returned value is 2-tuple (vdisp, vdisp_error).
+        '''
+        
+        if give_error == False:
+            return np.std(self.v[self.member], ddof=1)
+        
+        else:
+            N = np.sum(self.member)                                                         # number of members
+            vdisp = np.std(self.v[self.member], ddof=1)                                     # velocity dispersion
+
+            rng = np.random.default_rng(seed=0)                                             # random number generator with fixed seed 0
+            rand_idx = rng.integers(low=0, high=N, endpoint=False, size=(N, N_resamp))      # random sampled indices
+            vdisp_resamp = np.std(self.v[self.member][rand_idx], axis=0, ddof=1)            # resampled vdisp; shape=N_resamp
+
+            vdisp_err = np.std(vdisp_resamp)                                                # resampling error
+
+            return vdisp, vdisp_err
