@@ -198,6 +198,14 @@ class Caustics:
         self.member = member
         self.full_member = full_member
 
+        if self.display_log == True:
+            print("")
+            print("")
+            print("============== Summary ==============")
+            print("Cluster center found with candidate members: RA={:.3f} deg, Dec={:.3f} deg, v={:.0f} km/s".format(*self.cluster_center()))
+            print("Number of members: {} / {}".format(np.sum(self.member), self.N))
+            print("Velocity dispersion of member galaxies: {:.0f} +- {:.0f} km/s".format(*self.velocity_dispersion(give_error=True)))
+
 
     def create_member_list(self, new_fpath = None):
 
@@ -261,6 +269,7 @@ class Caustics:
             print("Hierarchical clustering done.")
         if self.display_log == True:
             print("Number of candidate members : {}".format(sum(cand_mem_idx)))
+            print("")
 
 
         cl_ra_cand, cl_dec_cand, cl_v_cand = self.find_cluster_center(gal_ra, gal_dec, gal_v, cand_mem_idx)            # calculate using the candidate members; see Section 4.3, Serra et al. 2011
@@ -283,6 +292,7 @@ class Caustics:
             if self.display_log == True:
                 print("Using cluster center given by user.")
                 print("Cluster center: RA = {:4.5f} deg, Dec = {:4.5f} deg, v = {:.0f} km/s, z = {:6f}".format(cl_ra, cl_dec, cl_v, cl_z))
+                print("")
         
         
         # calculate projected distance and radial velocity
