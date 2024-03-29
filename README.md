@@ -1,7 +1,14 @@
 # CausticSNUpy
-Python module for drawing caustic lines and determining cluster membership of galaxies using the caustic technique presented in Diaferio (1999) and Serra et al. (2011).  
+Python module for drawing caustic lines and determining cluster membership of galaxies using the caustic technique presented in [Diaferio (1999)](https://ui.adsabs.harvard.edu/abs/1999MNRAS.309..610D/abstract) and [Serra et al. (2011)](https://ui.adsabs.harvard.edu/abs/2011MNRAS.412..800S/abstract).  
 
 CausticApp, a program written by Serra and Diaferio, was used as a benchmark for this module and thus we tried to reproduce the same output for a given input.
+
+Details of this code can be found in [Kang et al. (2024)](https://arxiv.org/abs/2403.19307).
+
+## Citation
+We kindly request you to cite the following paper if you used this code:
+
+[Kang, W., Hwang, H. S., Song, H., et al. 2024](https://arxiv.org/abs/2403.19307) (arXiv:2403.19307)
 
 ## Dependencies
 ### Required Packages
