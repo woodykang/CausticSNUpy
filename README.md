@@ -3,12 +3,12 @@ Python module for drawing caustic lines and determining cluster membership of ga
 
 CausticApp, a program written by Serra and Diaferio, was used as a benchmark for this module and thus we tried to reproduce the same output for a given input.
 
-Details of this code can be found in [Kang et al. (2024)](https://arxiv.org/abs/2403.19307).
+Details of this code can be found in [Kang et al. (2024)](http://doi.org/10.3847/1538-4365/ad390d).
 
 ## Citation
 We kindly request you to cite the following paper if you used this code:
 
-[Kang, W., Hwang, H. S., Song, H., et al. 2024](https://arxiv.org/abs/2403.19307) (arXiv:2403.19307)
+[Kang, W., Hwang, H. S., Song, H., et al. 2024](http://doi.org/10.3847/1538-4365/ad390d)
 
 ## Dependencies
 ### Required Packages
@@ -32,7 +32,7 @@ After downloading and the tar.gz file, follow one of the following methods.
 1. Open terminal and change directory to where tar.gz file is located.
 2. Type and run `pip install` + tar.gz file name.
 ```
-pip install CausticSNUpy-0.0.1.tar.gz
+pip install CausticSNUpy-<version>.tar.gz
 ```
 
 ### Method 2: run setup.py
@@ -52,7 +52,7 @@ pip uninstall CausticSNUpy
 
 ## How to use
 ### Input file
-Input file must follow the following format:
+If you are using `run_from_file`, the input file must follow the following format:
 * The first line of the input file may either have 1 or 4 numbers.
     * The first line should be in format `N` or `N RA DEC VEL`,
     where N is the number of galaxies in the data, RA and DEC are the right ascension and declination of the cluster center (both in deg), and VEL is the radial velocity of the cluster center (in km/s).
@@ -65,10 +65,13 @@ Input file must follow the following format:
 See `example.ipynb` for the code to set the parameters, run the caustic method, and plot the redshift diagram with caustic lines.
 
 ### Main attributes of the class
-* `r` : projected distance from the cluster center to each galaxy
-* `v` : relative (with regard to the cluster center) l.o.s. velocity of each galaxy
-* `r_grid` : grid along the r-axis of the redshift diagram
-* `A` : amplitude of the caustic lines, evaluated for r_grid
+* `r` : projected distance from the cluster center to each galaxy [Mpc]
+* `v` : relative (with regard to the cluster center) l.o.s. velocity of each galaxy [km/s]
+* `r_grid` : grid along the r-axis of the redshift diagram [Mpc]
+* `A` : amplitude of the caustic lines along `r_grid` [km/s]
+* `dA` : uncertainty in `A` [km/s]
+* `M` : enclosed mass profile along `r_grid` [$M_{\odot}$]
+* `dM` : uncertainty in `M` [$M_{\odot}$]
 
 ## References
 1. Diaferio, A. 1999, MNRAS, 309, 610
