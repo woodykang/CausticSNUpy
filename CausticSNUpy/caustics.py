@@ -1,5 +1,6 @@
 # This class is for applying caustic method as presented by Diaferio 1999 and Serra et al. 2011.
 # When a list of galaxy data containing RA, Dec, and l.o.s. velocity is given, this class calculates the caustic line and determines the membership of each galaxy.
+# The code also calculates the mass profile of the cluster.
 
 # Code written by Wooseok Kang, Astronomy Program, Dept. of Physics and Astronomy, Seoul National University (SNU)
 # with help from members of Exgalcos team, SNU.
@@ -14,6 +15,7 @@
 import numpy as np
 import astropy.coordinates
 import astropy.units
+import astropy.constants
 import astropy.cosmology
 import skimage.measure
 from .hierarchical_clustering import hier_clustering
@@ -43,7 +45,8 @@ class Caustics:
     h_c             : float,    smoothing length used for KDE; if None, the program finds it; default value None
     kappa           : float,    user's choice of kappa for caustic determination; if None, the program finds it; if an input is given, kappa is fixed; default value None
     alpha           : float,    coefficient for smoothing factor h_c; this is multiplied to the final value of h_c if the user thinks the caustic is too noisy; default value 1
-    grad_limit      : float,    maximum value of d ln(A) / d ln(r) permitted (see Section 4.3, Serra et al. 2011); default value 2 
+    grad_limit      : float,    maximum value of d ln(A) / d ln(r) permitted (see Section 4.3, Serra et al. 2011); default value 2
+    F_b             : float,    filling factor for calculating the mass profile (see Section 5.3, Serra et al. 2011); default value 0.7
     display_log     : bool,     prints the log; default value True
 
     Attributes
@@ -54,6 +57,9 @@ class Caustics:
     r_grid              : numpy ndarray,    grid value along the r-axis of the redshift diagram (in units of Mpc)
     v_grid              : numpy ndarray,    grid value along the v-axis of the redshift diagram (in units of km/s)
     A                   : numpy ndarray,    amplitude of the caustic line along r_grid (in units of km/s)
+    dA                  : numpy ndarray,    uncertainty of A along r_grid (in units of km/s)
+    M                   : numpy ndarray,    enclosed mass profile along r_grid (in units of solar mass)
+    dM                  : numpy ndarray,    uncertainty of M along r_grid (in units of solar mass)
     r                   : numpy ndarray,    projected distance from cluster center to each galaxy within cutoff limits (in units of Mpc)
     v                   : numpy ndarray,    relative l.o.s. velocity of each galaxy within cutoff limits (in units of km/s)
     member              : numpy ndarray,    bool array which indicates whether a galaxy is a member or not; this is only applied to galaxies after projected distance and velocity cutoffs are applied (i.e., for attributes r and v); if you want to determine the membership of the total galaxies listed in the input file, please use `create_member_list`.
@@ -78,7 +84,7 @@ class Caustics:
 
     c = 299792.458                              # speed of light in km/s
 
-    def __init__(self, fpath, v_lower, v_upper, v_max, r_max, center_given=False, H0=100, Om0=0.3, Ode0=0.7, Tcmb0=2.7, q=25, r_res=100, v_res=100, BT_thr="ALS", gal_m=1e12, h_c = None, kappa=None, alpha=1, grad_limit=2, display_log=True):
+    def __init__(self, fpath, v_lower, v_upper, v_max, r_max, center_given=False, H0=100, Om0=0.3, Ode0=0.7, Tcmb0=2.7, q=25, r_res=100, v_res=100, BT_thr="ALS", gal_m=1e12, h_c = None, kappa=None, alpha=1, grad_limit=2, F_b=0.7, display_log=True):
         self.fpath = fpath                      # str,      file path of data
         self.v_lower = v_lower                  # float,    lower limit of l.o.s. velocity that member galaxies should have (in units of km/s)
         self.v_upper = v_upper                  # float,    upper limit of l.o.s. velocity that member galaxies should have (in units of km/s)
@@ -99,6 +105,7 @@ class Caustics:
         self.kappa = kappa                      # float,    user's choice of kappa for caustic determination; if None, the program finds it; if an input is given, kappa is fixed; default value None
         self.alpha = alpha                      # float,    coefficient for smoothing factor h_c; this is multiplied to the final value of h_c if the user thinks the caustic is too noisy; default value 1
         self.grad_limit = grad_limit            # float,    maximum value of d ln(A) / d ln(r) permitted (see Section 4.3, Serra et al. 2011); default value 2
+        self.F_b = F_b                          # float,    filling factor for calculating the mass profile (see Section 5.3, Serra et al. 2011); default value 0.7
         self.display_log = display_log          # bool,     prints the log; default value True
         
         # Declare other class attributes
@@ -152,8 +159,7 @@ class Caustics:
             print("Estimating number density.")
         f = self.density_estimation(x_data, y_data)                         # function that returns the number density on the redshift diagram when coordianates (x, y) are given
         if self.display_log == True:
-            print("Number density estimation done.")
-            print("")
+            print("Number density estimation done.\n")
 
         X, Y = np.meshgrid(x_grid, y_grid)                                  # mesh grid
         den = f(X, Y)*self.H0/self.q*2                                      # number density estimated at each point X, Y, normalized to be 1 when integrated along r, v axis
@@ -165,8 +171,7 @@ class Caustics:
                 print("Minimizing S(k) to find kappa.")
             self.kappa = self.find_kappa(r_grid, v_grid, den)
             if self.display_log == True:
-                print("kappa found. kappa =  {:.5e}, S(k) = {:.5e}.".format(self.kappa, fn(self.kappa)))
-                print("")
+                print("kappa found. kappa =  {:.5e}, S(k) = {:.5e}.\n".format(self.kappa, fn(self.kappa)))
         else:
             if self.display_log == True:
                 print("User input for kappa = {:.5e}, S(k) = {:.5e}".format(self.kappa, fn(self.kappa)))
@@ -174,10 +179,15 @@ class Caustics:
         # calculate A(r) with the minimized kappa
         if self.display_log == True:
             print("Drawing caustic lines.")
-        A = self.calculate_A(self.kappa, den, r_grid, v_grid)                    # calculate the final amplitude of caustic lines
+        A, dA = self.calculate_A(self.kappa, den, r_grid, v_grid)                    # calculate the final amplitude of caustic lines
         self.contours = skimage.measure.find_contours(den, self.kappa)
         if self.display_log == True:
-            print("Caustic line calculation done.\n")
+            print("Caustic line calculation done.")
+
+        # calculate enclosed mass profile with A
+        M, dM = self.calculate_M(r_grid, A, dA, self.F_b)
+        if self.display_log == True:
+            print("Mass profile calculation done.\n")
 
         # determine membership
         if self.display_log == True:
@@ -193,6 +203,9 @@ class Caustics:
         self.v_grid = v_grid
         self.den = den
         self.A = A
+        self.dA = dA
+        self.M = M
+        self.dM = dM
         self.member = member
         self.full_member = full_member
 
@@ -203,6 +216,7 @@ class Caustics:
             print("Cluster center found with candidate members: RA={:.3f} deg, Dec={:.3f} deg, v={:.0f} km/s".format(*self.cluster_center()))
             print("Number of members: {} / {}".format(np.sum(self.member), self.N))
             print("Velocity dispersion of member galaxies: {:.0f} +- {:.0f} km/s".format(*self.velocity_dispersion(give_error=True)))
+            print("Mass of the cluster: {:.2e} M_sun".format(np.max(self.M)))
 
 
     def create_member_list(self, new_fpath = None):
@@ -671,7 +685,7 @@ class Caustics:
         ---------------------------------------
         Value of the cost function.
         '''
-        A = self.calculate_A(kappa, den, r_grid, v_grid)                        # amplitude of the caustic lines for given kappa
+        A, dA = self.calculate_A(kappa, den, r_grid, v_grid)                        # amplitude of the caustic lines for given kappa
         
         # phi is calculated by integrating fq within the caustic lines.
         phi = np.empty(r_res)                                                   # initialize phi as an empty array with the same size as the r_grid
@@ -750,7 +764,7 @@ class Caustics:
 
         Returns
         --------------------------------------
-        caustic amplitude at each point in r_grid
+        caustic amplitude and its uncertainty at each point in r_grid
         '''
         contours = skimage.measure.find_contours(den, kappa)                    # contour lines of number density for given level kappa
 
@@ -831,8 +845,9 @@ These measures seemed necessary to be consistent with Caustic App.
             A[zero_idx:] = 0                                                    # A(r) is set to 0 for r >= r_grid[zero_idx].
 
         A = self.grad_restrict(A, r_grid, grad_limit=self.grad_limit)           # restrict gradient of A
+        dA = A*kappa/np.max(den, axis=0)
         
-        return A                                                                # return value: amplitude of caustic line determined at grid points on r_grid
+        return A, dA                                                            # return value: amplitude of caustic line and its uncertainty determined at grid points on r_grid
 
     def grad_restrict(self, A, r, grad_limit, new_grad = 0.25):
 
@@ -862,6 +877,43 @@ These measures seemed necessary to be consistent with Caustic App.
                     A[i+1] = np.exp( np.log(A[i]) + new_grad*(np.log(r[i+1]) - np.log(r[i])) )      # new value of A[i+1]
                 
         return A
+    
+    def calculate_M(self, r_grid, A, dA, F_b):
+        
+        '''
+        Calculates the enclosed mass profile and its uncertainty.
+
+        Parameters
+        --------------------------------------
+        r_grid  : numpy ndarray,    grid along the r-axis
+        A       : numpy ndarray,    caustic amplitude at given radius
+        dA      : numpy ndarray,    uncertainty of the caustic amplitude
+        F_b     : float,            filling factorr
+
+        Returns
+        --------------------------------------
+        enclosed mass profile and its uncertainty at each point in r_grid
+        '''
+
+        M = np.zeros_like(r_grid)       # enclosed mass profile
+        dM = np.zeros_like(r_grid)      # uncertainty of M
+
+        # dA_rel = dA/A                   # relative error of A
+
+        # calcualte M
+        for i in range(len(M)):
+            M[i] = F_b*np.trapz(x=r_grid[0:i], y=A[0:i]**2)
+        M *= ((astropy.units.km/astropy.units.s)**2*(astropy.units.Mpc)/astropy.constants.G).to_value(astropy.units.M_sun)  # covert to solar mass
+
+        # calculate dM
+        for i in range(1, len(dM)):
+            if (A[i] == 0):
+                break
+            for j in range(1, i):
+                dm = M[j]-M[j-1]        # mass of the j-th shell
+                dM[i] += 2*np.abs(dm*dA[j]/A[j])
+        
+        return M, dM
 
     def membership(self, r, v, r_grid, A):
 

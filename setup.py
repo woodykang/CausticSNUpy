@@ -4,8 +4,8 @@ with open("README.md", "r") as fh:
  
 setuptools.setup(
     name="CausticSNUpy",
-    version="0.1.1",
-    author="Woo Seok Kang",
+    version="0.2.0",
+    author="Wooseok Kang",
     author_email="woodykang@snu.ac.kr",
     description="Python package for determining cluster members using caustic technique.",
     long_description=long_description,
