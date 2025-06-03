@@ -41,6 +41,7 @@ def run_from_file(fpath,
                   alpha=1,
                   grad_limit=2,
                   F_b=0.7,
+                  sig_pl=None,
                   display_log=True):
     
     ra_gal, dec_gal, v_gal = np.loadtxt(fpath, skiprows=1, unpack=True)   # RA (deg), Dec (deg), l.o.s velocity (km/s)
@@ -67,7 +68,7 @@ def run_from_file(fpath,
     if N != ra_gal.size:                                                        # emit error if N does not match the actual number of galaxies listed in the file
         raise Exception("Number of galaxies stated in the first line of file does not match the number of galaxies listed.")
 
-    result = run_from_array(ra_gal, dec_gal, v_gal, v_lower, v_upper, r_max, v_max, ra_cl, dec_cl, v_cl, center_given, H0, Om0, Ode0, Tcmb0, q, r_res, v_res, BT_thr, gal_m, h_c, kappa, alpha, grad_limit, F_b, display_log)
+    result = run_from_array(ra_gal, dec_gal, v_gal, v_lower, v_upper, r_max, v_max, ra_cl, dec_cl, v_cl, center_given, H0, Om0, Ode0, Tcmb0, q, r_res, v_res, BT_thr, gal_m, h_c, kappa, alpha, grad_limit, F_b, sig_pl, display_log)
     return result
 
 def run_from_array(ra_gal,
@@ -95,6 +96,7 @@ def run_from_array(ra_gal,
                    alpha=1,
                    grad_limit=2,
                    F_b=0.7,
+                   sig_pl=None,
                    display_log=True):
     
     c = 299792.458  # speed of light in [km/s]
@@ -109,7 +111,7 @@ def run_from_array(ra_gal,
 
 # find candidate members from hierarchical clustering
     within_vrange = (v_lower < v_gal) & (v_gal < v_upper)
-    cand_mem_idx, mainbranch, BT_sigma, BT_cut_idx = hier_clustering(ra_gal, dec_gal, v_gal, mask=within_vrange)
+    cand_mem_idx, mainbranch, BT_sigma, BT_cut_idx = hier_clustering(ra_gal, dec_gal, v_gal, mask=within_vrange, sig_pl=sig_pl)
     if display_log == True:
         print("Hierarchical clustering done.")
         print("Number of candidate members : {}".format(sum(cand_mem_idx)))

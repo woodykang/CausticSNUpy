@@ -6,7 +6,7 @@
 
 import numpy as np
 import scipy.cluster
-def hier_clustering(gal_ra, gal_dec, gal_v, threshold="ALS", gal_m=1e12, mask=None):
+def hier_clustering(gal_ra, gal_dec, gal_v, threshold="ALS", gal_m=1e12, mask=None, sig_pl=None):
     '''
     Constructs binary tree using hierarchical clustering and finds candidate member galaxies.
     This function is based on Diaferio 1999 and Serra et al. 2011.
@@ -134,7 +134,8 @@ def hier_clustering(gal_ra, gal_dec, gal_v, threshold="ALS", gal_m=1e12, mask=No
 
 
     hist, bins = np.histogram(sigma, bins='auto')                   # apply bins to get the mode
-    sig_pl = (bins[np.argmax(hist)] + bins[np.argmax(hist)+1])/2    # mode of the velocity dispersions
+    if sig_pl is None:
+        sig_pl = (bins[np.argmax(hist)] + bins[np.argmax(hist)+1])/2    # mode of the velocity dispersions
 
     # find where to cut the binary tree
     if threshold == "AD":
