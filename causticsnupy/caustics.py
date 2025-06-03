@@ -111,7 +111,7 @@ def run_from_array(ra_gal,
 
 # find candidate members from hierarchical clustering
     within_vrange = (v_lower < v_gal) & (v_gal < v_upper)
-    cand_mem_idx, mainbranch, BT_sigma, BT_cut_idx = hier_clustering(ra_gal, dec_gal, v_gal, mask=within_vrange, sig_pl=sig_pl)
+    cand_mem_idx, mainbranch, BT_sigma, BT_cut_idx = hier_clustering(ra_gal, dec_gal, v_gal, mask=within_vrange, gal_m=gal_m, sig_pl=sig_pl)
     if display_log == True:
         print("Hierarchical clustering done.")
         print("Number of candidate members : {}".format(sum(cand_mem_idx)))
