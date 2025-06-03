@@ -44,6 +44,39 @@ def run_from_file(fpath,
                   sig_pl=None,
                   display_log=True):
     
+    '''
+    Calculates the caustics by reading the input file.
+
+    Parameters
+    ----------------------------------
+    fpath           : path to the input file
+    v_lower         : float, lower line-of-sight velocity limit of galaxies to use in the caustics (in units of km/s); velocity relative to the observer (cz)
+    v_upper         : float, upper line-of-sight velocity limit of galaxies to use in the caustics (in units of km/s); velocity relative to the observer (cz)
+    v_max           : float, maximum line-of-sight velocity relative to the cluster center when drawing the caustics diagram (in units of km/s); the minimum value is automatically set as -v_max
+    r_max           : float, maximum projected distance from the cluster center when drawing the caustics diagram (in units of Mpc); the minimum projected distance is trivially zero
+    center_given    : bool, optional, whether to use the cluster center (RA, decl, v); default value False
+    H0              : float, optional, Hubble parameter at the current Universe (in units of km/s/Mpc); default value 100
+    Om0             : float, optional, matter density parameter at the current Universe; default value 0.3
+    Ode0            : float, optional, dark energy density parameter at the current Universe; default value 0.7
+    Tcmb0           : float, optional, temperature of the cosmic microwave background at the current Universe (in units of K); default value 2.7
+    q               : float, optional, rescaling factor defined in Diaferio 1999; default value 25
+    r_res           : float, optional, number of grid points along the projected distance in the caustics diagram; default value 100
+    v_res           : float, optional, number of grid points along the line-of-sight velocity in the caustics diagram; default value 100
+    BT_thr          : str, optional, binary tree threshold method; only supports "ALS" at this moment; default value "ALS"
+    gal_m           : float, optional, mass of galaxies to be used in the binary tree construction (in units of solar mass); default value 1e12
+    h_c             : float or None, optional, h_c value for kernel bandwidth used in kernel density estimation; if given, uses the given h_c instead of calculating; default value None
+    kappa           : float or None, optional, number density threshold for determining the caustics amplitude; if given, uses the value instead of calculating; default value None
+    alpha           : float, optional, smoothing parameter for kernel density estimation of the redshift space, multiplied to the kernel bandwidth; default value 1
+    grad_limit      : float, optional, limit of the log-gradient of the caustic amplitude, default value 2
+    F_b             : float, optional, filling factor used when calculating mass profile; default value 0.7
+    sig_pl          : float or None, optional, sigma plateau (in units of km/s); if given, uses the value instead of calculating the sigma plateau; default value None,
+    display_log     : bool, optional, prints log if True; default value True
+
+    Returns
+    ----------------------------------
+    results         : CausticResults, contains information of the caustics results
+    '''
+    
     ra_gal, dec_gal, v_gal = np.loadtxt(fpath, skiprows=1, unpack=True)   # RA (deg), Dec (deg), l.o.s velocity (km/s)
     cluster_data = np.loadtxt(fpath, max_rows=1)                          # In the first row, the format is N, cl_ra, cl_dec, cl_v
                                                                                 # where N is number of galaxies observed, and
@@ -98,6 +131,41 @@ def run_from_array(ra_gal,
                    F_b=0.7,
                    sig_pl=None,
                    display_log=True):
+    
+    '''
+    Calculates the caustics from input numpy arrays.
+
+    Parameters
+    ----------------------------------
+    ra_gal          : numpy ndarray, array of right ascensions of input galaxies (in units of degree)
+    dec_gal         : numpy ndarray, array of declinations of input galaxies (in units of degree); must be the same size as ra_gal
+    v_gal           : numpy ndarray, array of line-of-sight velocities of input galaxies relative to the observer (cz in units of km/s); must be the same size as ra_gal
+    v_lower         : float, lower line-of-sight velocity limit of galaxies to use in the caustics (in units of km/s); velocity relative to the observer (cz)
+    v_upper         : float, upper line-of-sight velocity limit of galaxies to use in the caustics (in units of km/s); velocity relative to the observer (cz)
+    v_max           : float, maximum line-of-sight velocity relative to the cluster center when drawing the caustics diagram (in units of km/s); the minimum value is automatically set as -v_max
+    r_max           : float, maximum projected distance from the cluster center when drawing the caustics diagram (in units of Mpc); the minimum projected distance is trivially zero
+    center_given    : bool, optional, whether to use the cluster center (RA, decl, v); default value False
+    H0              : float, optional, Hubble parameter at the current Universe (in units of km/s/Mpc); default value 100
+    Om0             : float, optional, matter density parameter at the current Universe; default value 0.3
+    Ode0            : float, optional, dark energy density parameter at the current Universe; default value 0.7
+    Tcmb0           : float, optional, temperature of the cosmic microwave background at the current Universe (in units of K); default value 2.7
+    q               : float, optional, rescaling factor defined in Diaferio 1999; default value 25
+    r_res           : float, optional, number of grid points along the projected distance in the caustics diagram; default value 100
+    v_res           : float, optional, number of grid points along the line-of-sight velocity in the caustics diagram; default value 100
+    BT_thr          : str, optional, binary tree threshold method; only supports "ALS" at this moment; default value "ALS"
+    gal_m           : float, optional, mass of galaxies to be used in the binary tree construction (in units of solar mass); default value 1e12
+    h_c             : float or None, optional, h_c value for kernel bandwidth used in kernel density estimation; if given, uses the given h_c instead of calculating; default value None
+    kappa           : float or None, optional, number density threshold for determining the caustics amplitude; if given, uses the value instead of calculating; default value None
+    alpha           : float, optional, smoothing parameter for kernel density estimation of the redshift space, multiplied to the kernel bandwidth; default value 1
+    grad_limit      : float, optional, limit of the log-gradient of the caustic amplitude, default value 2
+    F_b             : float, optional, filling factor used when calculating mass profile; default value 0.7
+    sig_pl          : float or None, optional, sigma plateau (in units of km/s); if given, uses the value instead of calculating the sigma plateau; default value None,
+    display_log     : bool, optional, prints log if True; default value True
+
+    Returns
+    ----------------------------------
+    results         : CausticResults, contains information of the caustics results
+    '''
     
     c = 299792.458  # speed of light in [km/s]
 
