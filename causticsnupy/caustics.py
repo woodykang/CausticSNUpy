@@ -261,7 +261,7 @@ def run_from_array(ra_gal,
             print("kappa found. kappa={:.5e}\n".format(kappa))
     else:
         if display_log == True:
-            print("Using user input for kappa={:.5e}, S(kappa)={:.5e}\n".format(kappa, S(kappa, r_grid, r_res, den, R_avg, v_var, grad_limit)))
+            print("Using user input for kappa={:.5e}, S(kappa)={:.5e}\n".format(kappa, S(kappa, r_grid, v_grid, r_res, den, R_avg, v_var, grad_limit)))
     
 # calculate A(r) with the minimized kappa
     A, dA = calculate_A(kappa, den, r_grid, v_grid, grad_limit)
