@@ -392,15 +392,17 @@ def find_kappa(r_grid, v_grid, r_res, den, R_avg, v_var, grad_limit):
     S1 = fn(k1)
     
     i = 2
+    decreasing = False
     while(i < nstep):
         k2 = k1 + step_size
         S2 = fn(k2)
         
-        if S2 > S1:
+        if (S2 > S1) & (decreasing):
             k = parabola_min(k0, k1, k2, S0, S1, S2)
             return k
-        
         else:
+            if (S2 <= S1): 
+                decreasing = True
             k0 = k1
             k1 = k2
             S0 = S1
