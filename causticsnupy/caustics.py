@@ -179,6 +179,7 @@ def run_from_array(ra_gal,
 
 # find candidate members from hierarchical clustering
     within_vrange = (v_lower < v_gal) & (v_gal < v_upper)
+    # BT_sigma value should be divided by (1+z_cl) in the later part of the code. For now, we don't know the cluster redshift.
     cand_mem_idx, mainbranch, BT_sigma, BT_cut_idx = hier_clustering(ra_gal, dec_gal, v_gal, mask=within_vrange, gal_m=gal_m, sig_pl=sig_pl)
     if display_log == True:
         print("Hierarchical clustering done.")
@@ -205,6 +206,8 @@ def run_from_array(ra_gal,
         else:
             print("Using cluster center calculated here.")
 
+    BT_sigma = BT_sigma/(1+z_cl)        # correct for cosmological redshift
+
 
 # calculate projected clustercentric distance and l.o.s. velocity
     LCDM = LambdaCDM(H0, Om0, Ode0, Tcmb0)                          # assumed cosmology
@@ -217,10 +220,10 @@ def run_from_array(ra_gal,
     v = (v_gal - v_cl)/(1+z_cl)                                     # line-of-sight velocity of galaxies
 
     R_avg = np.average(r[cand_mem_idx])                             # average projected distance from the center of the cluster to candidate member galaxies (in units of Mpc); later to be used for function S(k)
-    v_var = np.var(v[cand_mem_idx & (r < R_avg)], ddof=1)           # variance of v calculated from candidate members (in units of (km/s)**2); later to be used for function S(k)
+    v_var = np.average(v[cand_mem_idx]**2)                          # variance of v calculated from candidate members (in units of (km/s)**2); later to be used for function S(k)
     if display_log == True:
-        print("Mean clustercentric distance of candidate members:             {:4.5f} Mpc".format(R_avg))
-        print("Velocity Dispersion of candidate members within mean distance: {:4.5f} km/s".format(np.sqrt(v_var)))
+        print("Mean clustercentric distance of candidate members:   {:4.5f} Mpc".format(R_avg))
+        print("Velocity Dispersion of candidate members:            {:4.5f} km/s".format(np.sqrt(v_var)))
         print("")
 
     within_rrange = (r < r_max)
@@ -392,7 +395,7 @@ def find_kappa(r_grid, v_grid, r_res, den, R_avg, v_var, grad_limit):
     S1 = fn(k1)
     
     i = 2
-    decreasing = False
+    decreasing = (S1 <= S0)
     while(i < nstep):
         k2 = k1 + step_size
         S2 = fn(k2)
