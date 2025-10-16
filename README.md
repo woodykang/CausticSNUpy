@@ -1,5 +1,5 @@
 # CausticSNUpy
-Python module for drawing caustic lines and determining cluster membership of galaxies using the caustic technique presented in [Diaferio (1999)](https://ui.adsabs.harvard.edu/abs/1999MNRAS.309..610D/abstract) and [Serra et al. (2011)](https://ui.adsabs.harvard.edu/abs/2011MNRAS.412..800S/abstract).  
+Python implementation of the caustic technique for identifying galaxy cluster membership and measuring the mass profile of the cluster. Original technique is presented in [Diaferio (1999)](https://ui.adsabs.harvard.edu/abs/1999MNRAS.309..610D/abstract) and [Serra et al. (2011)](https://ui.adsabs.harvard.edu/abs/2011MNRAS.412..800S/abstract).  
 
 CausticApp, a program written by Serra and Diaferio, was used as a benchmark for this module and thus we tried to reproduce the same output for a given input.
 
@@ -25,23 +25,29 @@ We kindly request you to cite the following paper if you used this code:
 * scikit-image 0.18.3
 
 ## How to install
-This package is currently only available through manual installation.  
-After downloading and the tar.gz file, follow one of the following methods.
+Installatation is available through `pip` or direct install from the githup repo.
 
-### Method 1: using pip
-1. Open terminal and change directory to where tar.gz file is located.
-2. Type and run `pip install` + tar.gz file name.
+### Method 1: installing from pip repository
+1. On your terminal, type and enter `pip install causticsnupy`.
 ```
-pip install CausticSNUpy-<version>.tar.gz
+pip install CausticSNUpy
 ```
 
-### Method 2: run setup.py
-1. Open terminal and change directory to where setup.py is located.
-2. In your terminal, type and run
+### Method 2: installing from zip file
+1. Download the `.zip` file from [github](https://github.com/woodykang/CausticSNUpy) repository. Click 'Code' button on the top right of the page, and click 'Download ZIP'.
+2. In your terminal, change directory to the location where the `.zip` file is.
+3. Type and enter the following:
+```
+pip install CausticSNUpy-main.zip
+```
+
+### Method 3: run setup.py
+1. Clone the repository to your local machine.
+2. Open terminal and change directory to where `setup.py` is located.
+3. In your terminal, type and run
 ```
 python setup.py install
 ```
-3. Now you are ready to use this package!
 
 ## How to uninstall
 1. Open terminal (any directory is fine).
