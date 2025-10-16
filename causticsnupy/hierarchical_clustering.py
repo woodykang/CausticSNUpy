@@ -132,8 +132,8 @@ def hier_clustering(gal_ra, gal_dec, gal_v, threshold="ALS", gal_m=1e12, mask=No
     for i, node in enumerate(mainbranch):
         sigma[i] = np.std(gal_v[leaves[node-N]])
 
-
-    hist, bins = np.histogram(sigma, bins=np.arange(np.min(sigma), np.max(sigma), (np.max(sigma)-np.min(sigma))/5))                   # apply bins to get the mode
+    bins = np.arange(np.min(sigma), np.max(sigma), 120)
+    hist, bins = np.histogram(sigma, bins=bins)                   # apply bins to get the mode
     if sig_pl is None:
         sig_pl = (bins[np.argmax(hist)] + bins[np.argmax(hist)+1])/2    # mode of the velocity dispersions
 
